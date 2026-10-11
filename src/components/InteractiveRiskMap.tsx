@@ -164,10 +164,10 @@ export default function InteractiveRiskMap({
   }, [simulationActive, transferRoutes]);
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+    <div style={{ position: "relative", width: "100%", height: "100%", zIndex: 1, isolation: "isolate" }}>
       <div
         ref={mapContainerRef}
-        style={{ width: "100%", height: "100%", borderRadius: "var(--radius-md)", overflow: "hidden" }}
+        style={{ width: "100%", height: "100%", borderRadius: "var(--radius-md)", overflow: "hidden", position: "relative", zIndex: 1 }}
       />
     </div>
   );
