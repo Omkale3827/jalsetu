@@ -1,9 +1,41 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Image from "next/image";
+import dynamic from "next/dynamic";
 import { INITIAL_ZONES, INITIAL_USER, ROLE_PRESETS, Zone, UserProfile } from "@/lib/data";
 import { JalsetuMath } from "@/lib/math";
+import AnimatedKpiValue from "@/components/AnimatedKpiValue";
+import ForecastSplitChart from "@/components/ForecastSplitChart";
+
+// Dynamically import Leaflet component with SSR disabled
+const InteractiveRiskMap = dynamic(() => import("@/components/InteractiveRiskMap"), {
+  ssr: false,
+  loading: () => (
+    <div style={{ height: "420px", display: "flex", alignItems: "center", justifyContent: "center", background: "#F7FAFB", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)" }}>
+      <span style={{ color: "var(--color-primary)", fontWeight: 600 }}>Loading City GIS Spatial Network...</span>
+    </div>
+  )
+});
+
+interface TelemetryResponse {
+  zones: Zone[];
+  series: {
+    labels: string[];
+    forecastStartIndex: number;
+    profiles: Record<string, { historical: number[]; forecast: number[] }>;
+  };
+  transferRoutes: Array<{
+    id: string;
+    fromZoneId: string;
+    fromName: string;
+    fromCoords: [number, number];
+    toZoneId: string;
+    toName: string;
+    toCoords: [number, number];
+    transferVolume: number;
+    status: string;
+  }>;
+}
 
 export default function JalsetuApp() {
   const [activeView, setActiveView] = useState<string>("home");
@@ -17,6 +49,32 @@ export default function JalsetuApp() {
   const [selectedLoginRole, setSelectedLoginRole] = useState<"operator" | "analyst">("operator");
   const [loginEmail, setLoginEmail] = useState(INITIAL_USER.email);
 
+  // Advanced Map Simulation & Real Telemetry States
+  const [telemetry, setTelemetry] = useState<TelemetryResponse | null>(null);
+  const [simulationActive, setSimulationActive] = useState(false);
+  const [selectedMapZone, setSelectedMapZone] = useState<Zone | null>(INITIAL_ZONES[1]); // Default to Zone B
+  const [isLoadingApi, setIsLoadingApi] = useState(true);
+
+  // Fetch real telemetry from backend API route
+  useEffect(() => {
+    async function loadTelemetry() {
+      try {
+        setIsLoadingApi(true);
+        const res = await fetch(`/api/telemetry?horizon=${selectedHorizon}&supply=${totalAvailableSupply}`);
+        if (res.ok) {
+          const data = await res.json();
+          setTelemetry(data);
+          if (data.zones) setZones(data.zones);
+        }
+      } catch (err) {
+        console.warn("Using embedded fallback telemetry", err);
+      } finally {
+        setIsLoadingApi(false);
+      }
+    }
+    loadTelemetry();
+  }, [selectedHorizon, totalAvailableSupply]);
+
   // Totals
   const totalDemand = zones.reduce((s, z) => s + z.predictedDemand, 0);
   const totalCurrentSupply = zones.reduce((s, z) => s + z.availableSupply, 0);
@@ -24,6 +82,18 @@ export default function JalsetuApp() {
 
   // Redistribution calculation
   const redistributionPlan = JalsetuMath.redistributeSupply(zones, totalAvailableSupply);
+
+  // Active chart zone profile
+  const activeZoneKey = selectedZoneFilter === "all" ? "zone-b" : selectedZoneFilter;
+  const activeSeries = telemetry?.series?.profiles?.[activeZoneKey] || {
+    historical: [450, 490, 580, 720, 850, 820, 780],
+    forecast: [880, 960, 1040, 980, 850, 710]
+  };
+  const activeLabels = telemetry?.series?.labels || [
+    "12 AM", "2 AM", "4 AM", "6 AM", "8 AM", "10 AM", "12 PM",
+    "2 PM", "4 PM", "6 PM", "8 PM", "10 PM", "12 AM"
+  ];
+  const forecastStartIndex = telemetry?.series?.forecastStartIndex ?? 6;
 
   const handleRoleTabChange = (role: "operator" | "analyst") => {
     setSelectedLoginRole(role);
@@ -62,7 +132,7 @@ export default function JalsetuApp() {
         <div className="container nav-container">
           <div className="brand" onClick={() => setActiveView("home")} style={{ cursor: "pointer" }}>
             <span className="brand-icon" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
               </svg>
             </span>
@@ -180,41 +250,47 @@ export default function JalsetuApp() {
                 </div>
               </div>
 
-              {/* 4 KPI Cards */}
+              {/* 4 Animated KPI Cards with brief load counting */}
               <div className="kpi-grid">
                 <div className="kpi-card">
                   <div className="kpi-icon-box blue" aria-hidden="true">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
                   </div>
                   <div className="kpi-content">
                     <span className="kpi-label">Total Demand (Today)</span>
-                    <span className="kpi-value">{JalsetuMath.formatNumber(totalDemand)} <span className="unit">L</span></span>
+                    <span className="kpi-value">
+                      <AnimatedKpiValue value={totalDemand} />
+                    </span>
                   </div>
                 </div>
 
                 <div className="kpi-card">
                   <div className="kpi-icon-box green" aria-hidden="true">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 12h10M12 7v10"/></svg>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 12h10M12 7v10"/></svg>
                   </div>
                   <div className="kpi-content">
                     <span className="kpi-label">Available Supply</span>
-                    <span className="kpi-value positive">{JalsetuMath.formatNumber(totalCurrentSupply)} <span className="unit">L</span></span>
+                    <span className="kpi-value positive">
+                      <AnimatedKpiValue value={totalCurrentSupply} />
+                    </span>
                   </div>
                 </div>
 
                 <div className="kpi-card">
                   <div className="kpi-icon-box red" aria-hidden="true">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                   </div>
                   <div className="kpi-content">
                     <span className="kpi-label">Estimated Shortage</span>
-                    <span className="kpi-value negative">{JalsetuMath.formatNumber(totalShortage)} <span className="unit">L</span></span>
+                    <span className="kpi-value negative">
+                      <AnimatedKpiValue value={totalShortage} />
+                    </span>
                   </div>
                 </div>
 
                 <div className="kpi-card">
                   <div className="kpi-icon-box teal" aria-hidden="true">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
                   </div>
                   <div className="kpi-content">
                     <span className="kpi-label">Zones Monitored</span>
@@ -228,7 +304,7 @@ export default function JalsetuApp() {
               <div className="quick-access-grid">
                 <div className="quick-card" onClick={() => setActiveView("prediction")}>
                   <div className="quick-card-icon" style={{ background: "#E8F3FE", color: "#0867C4" }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-6 6"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-6 6"/></svg>
                   </div>
                   <h3 className="quick-card-title">Demand Prediction</h3>
                   <p className="quick-card-desc">View forecasted water usage for each zone</p>
@@ -236,7 +312,7 @@ export default function JalsetuApp() {
 
                 <div className="quick-card" onClick={() => setActiveView("anomalies")}>
                   <div className="quick-card-icon" style={{ background: "#FDC8C8", color: "#C62828" }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
                   </div>
                   <h3 className="quick-card-title">Check for Anomalies</h3>
                   <p className="quick-card-desc">Find unusual consumption patterns & surges</p>
@@ -244,7 +320,7 @@ export default function JalsetuApp() {
 
                 <div className="quick-card" onClick={() => setActiveView("shortages")}>
                   <div className="quick-card-icon" style={{ background: "#E8F3FE", color: "#0867C4" }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
                   </div>
                   <h3 className="quick-card-title">View Shortages</h3>
                   <p className="quick-card-desc">See which zones may face water shortage</p>
@@ -252,7 +328,7 @@ export default function JalsetuApp() {
 
                 <div className="quick-card" onClick={() => setActiveView("redistribution")}>
                   <div className="quick-card-icon" style={{ background: "#D5F6D8", color: "#14632F" }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
                   </div>
                   <h3 className="quick-card-title">Redistribution Plan</h3>
                   <p className="quick-card-desc">Get water allocation recommendations</p>
@@ -305,13 +381,13 @@ export default function JalsetuApp() {
             </section>
           )}
 
-          {/* VIEW 2: DEMAND PREDICTION */}
+          {/* VIEW 2: DEMAND PREDICTION WITH HISTORICAL SOLID & PREDICTED DASHED */}
           {activeView === "prediction" && (
             <section className="page-view active" aria-labelledby="pred-page-title">
               <div className="card">
                 <h1 id="pred-page-title" className="card-title" style={{ fontSize: "22px", marginBottom: "4px" }}>Demand Prediction</h1>
                 <p className="card-subtitle" style={{ marginBottom: "var(--space-5)" }}>
-                  AI model predicts future water consumption for each zone based on historical data and weather patterns.
+                  AI model predicts future water consumption for each zone based on historical telemetry and weather covariates.
                 </p>
 
                 <div style={{ display: "flex", gap: "var(--space-4)", alignItems: "flex-end", marginBottom: "var(--space-6)", flexWrap: "wrap" }}>
@@ -335,37 +411,39 @@ export default function JalsetuApp() {
                       value={selectedZoneFilter}
                       onChange={(e) => setSelectedZoneFilter(e.target.value)}
                     >
-                      <option value="all">All Zones</option>
+                      <option value="all">Zone B (Central Commercial — Primary Alert)</option>
                       {zones.map((z) => (
-                        <option key={z.id} value={z.id}>{z.name}</option>
+                        <option key={z.id} value={z.id}>{z.name} ({z.displayName})</option>
                       ))}
                     </select>
                   </div>
 
-                  <button className="btn btn-primary" onClick={() => alert("Forecast model refreshed with latest telemetry.")}>Predict</button>
+                  <button className="btn btn-primary" onClick={() => alert("Model inference refreshed with latest meter readings.")}>Predict</button>
                 </div>
 
-                {/* SVG Prediction Chart */}
-                <h2 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "var(--space-3)" }}>Predicted Water Consumption (All Zones)</h2>
-                <div style={{ height: "260px", background: "#FFFFFF", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "16px", marginBottom: "var(--space-6)", position: "relative" }}>
-                  <svg width="100%" height="200" viewBox="0 0 800 200" preserveAspectRatio="none">
-                    <line x1="0" y1="180" x2="800" y2="180" stroke="#EAF0F6" strokeWidth="1" />
-                    <line x1="0" y1="120" x2="800" y2="120" stroke="#EAF0F6" strokeWidth="1" />
-                    <line x1="0" y1="60" x2="800" y2="60" stroke="#EAF0F6" strokeWidth="1" />
-                    {/* Zone A curve */}
-                    <path d="M 0 160 Q 200 40 400 130 T 800 150" fill="none" stroke="#1F6FDB" strokeWidth="3" />
-                    {/* Zone B curve */}
-                    <path d="M 0 150 Q 200 10 400 90 T 800 130" fill="none" stroke="#1C8748" strokeWidth="3" />
-                    {/* Zone C curve */}
-                    <path d="M 0 170 Q 200 80 400 150 T 800 160" fill="none" stroke="#C96100" strokeWidth="2.5" />
-                    {/* Zone D curve */}
-                    <path d="M 0 140 Q 200 60 400 110 T 800 140" fill="none" stroke="#7B5CD6" strokeWidth="2.5" />
-                    {/* Zone E curve */}
-                    <path d="M 0 165 Q 200 70 400 135 T 800 155" fill="none" stroke="#D9363E" strokeWidth="2.5" />
-                  </svg>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "var(--color-text-secondary)", marginTop: "4px" }}>
-                    <span>12 AM</span><span>3 AM</span><span>6 AM</span><span>9 AM</span><span>12 PM</span><span>3 PM</span><span>6 PM</span><span>9 PM</span><span>12 AM</span>
+                {/* Animated Chart: Solid Blue Historical, Dashed Blue Forecast, Vertical Line Indicator */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
+                  <h2 style={{ fontSize: "16px", fontWeight: 700 }}>
+                    Water Demand Profile ({zones.find(z => z.id === activeZoneKey)?.name || "Zone B"})
+                  </h2>
+                  <div style={{ display: "flex", gap: "16px", fontSize: "12px" }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{ width: "16px", height: "3px", background: "#1F6FDB" }}></span> Solid: Historical Actual
+                    </span>
+                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{ width: "16px", height: "3px", borderTop: "2px dashed #0867C4" }}></span> Dashed: Model Predicted
+                    </span>
                   </div>
+                </div>
+
+                <div style={{ background: "#FFFFFF", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "16px", marginBottom: "var(--space-6)" }}>
+                  <ForecastSplitChart
+                    labels={activeLabels}
+                    forecastStartIndex={forecastStartIndex}
+                    historicalData={activeSeries.historical}
+                    forecastData={activeSeries.forecast}
+                    zoneName={zones.find(z => z.id === activeZoneKey)?.name || "Zone B"}
+                  />
                 </div>
 
                 {/* Table */}
@@ -448,7 +526,7 @@ export default function JalsetuApp() {
                       <div className="alert-subtitle">Current consumption (850 L) is 42% higher than the normal range.</div>
                     </div>
                   </div>
-                  <button className="btn btn-primary" onClick={() => setActiveView("map")}>View Details</button>
+                  <button className="btn btn-primary" onClick={() => setActiveView("map")}>View Details on Map</button>
                 </div>
               </div>
             </section>
@@ -499,7 +577,7 @@ export default function JalsetuApp() {
                 </div>
 
                 <div className="info-note-banner">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                     <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
                   </svg>
                   <div>
@@ -597,7 +675,7 @@ export default function JalsetuApp() {
                 </div>
 
                 <div className="info-note-banner teal">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
                     <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
                   </svg>
                   <div>
@@ -608,70 +686,109 @@ export default function JalsetuApp() {
             </section>
           )}
 
-          {/* VIEW 6: MAP VIEW */}
+          {/* VIEW 6: MAP VIEW & REDISTRIBUTION SIMULATION */}
           {activeView === "map" && (
             <section className="page-view active" aria-labelledby="map-page-title">
               <div className="card">
                 <div className="card-header">
                   <div>
-                    <h1 id="map-page-title" className="card-title" style={{ fontSize: "22px", marginBottom: "4px" }}>City Water Map</h1>
-                    <p className="card-subtitle">View zones, demand, shortage risk and key insights.</p>
+                    <h1 id="map-page-title" className="card-title" style={{ fontSize: "22px", marginBottom: "4px" }}>City Water Risk & Infrastructure Map</h1>
+                    <p className="card-subtitle">Interactive Leaflet GIS with real-time zone metrics and simulated pipe redistribution routes.</p>
                   </div>
-                  <div style={{ display: "flex", gap: "12px", fontSize: "12px", alignItems: "center" }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#D9363E" }}></span> High Risk</span>
-                    <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#FFA94D" }}></span> Medium Risk</span>
-                    <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#40C057" }}></span> Low Risk</span>
+                  <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+                    <button
+                      className={`btn ${simulationActive ? "btn-secondary" : "btn-primary"}`}
+                      onClick={() => setSimulationActive(!simulationActive)}
+                    >
+                      {simulationActive ? "Hide Transfer Routes" : "⚡ Simulate Redistribution Routes"}
+                    </button>
+                    <div style={{ display: "flex", gap: "10px", fontSize: "12px", alignItems: "center" }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#D9363E" }}></span> High Risk</span>
+                      <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#FFA94D" }}></span> Medium Risk</span>
+                      <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#2B8A3E" }}></span> Low Risk</span>
+                    </div>
                   </div>
                 </div>
 
                 <div className="map-view-grid">
-                  <div style={{ height: "420px", background: "#E8F3FE", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px", textAlign: "center" }}>
-                    <div style={{ fontSize: "40px", marginBottom: "12px" }}>🗺️</div>
-                    <h3 style={{ fontSize: "18px", fontWeight: 700, color: "var(--color-nav-bg)", marginBottom: "8px" }}>Thane Metropolitan Spatial Network</h3>
-                    <p style={{ maxWidth: "450px", fontSize: "13px", color: "var(--color-text-secondary)" }}>
-                      Zones A, B, C, D, and E mapped across coordinates [19.2000, 72.9750]. Zone B flagged as primary critical demand node.
-                    </p>
+                  <div style={{ height: "420px", position: "relative" }}>
+                    <InteractiveRiskMap
+                      zones={zones}
+                      selectedZoneId={selectedMapZone?.id}
+                      onSelectZone={(z) => setSelectedMapZone(z)}
+                      simulationActive={simulationActive}
+                      transferRoutes={telemetry?.transferRoutes || []}
+                    />
                   </div>
 
+                  {/* Zone Inspection Panel */}
                   <div style={{ background: "var(--color-surface-muted)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "var(--space-4)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                     <div>
-                      <h2 style={{ fontSize: "15px", fontWeight: 700, marginBottom: "var(--space-3)", color: "var(--color-text-primary)" }}>Key Insights</h2>
+                      <h2 style={{ fontSize: "15px", fontWeight: 700, marginBottom: "var(--space-2)", color: "var(--color-text-primary)" }}>
+                        {selectedMapZone ? `${selectedMapZone.name} Overview` : "Select a Zone"}
+                      </h2>
+                      {selectedMapZone && (
+                        <div style={{ fontSize: "13px", lineHeight: "1.6", color: "var(--color-text-primary)" }}>
+                          <div style={{ color: "var(--color-text-secondary)", fontSize: "12px", marginBottom: "6px" }}>{selectedMapZone.displayName}</div>
+                          <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid var(--color-border)" }}>
+                            <span>Demand:</span> <strong>{JalsetuMath.formatNumber(selectedMapZone.predictedDemand)} L</strong>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid var(--color-border)" }}>
+                            <span>Supply:</span> <strong>{JalsetuMath.formatNumber(selectedMapZone.availableSupply)} L</strong>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid var(--color-border)" }}>
+                            <span>Shortage:</span> <strong style={{ color: "var(--color-value-negative)" }}>{JalsetuMath.formatNumber(JalsetuMath.calculateShortage(selectedMapZone.predictedDemand, selectedMapZone.availableSupply))} L</strong>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+                            <span>Risk Status:</span> <strong style={{ color: JalsetuMath.classifyRisk(selectedMapZone.predictedDemand, selectedMapZone.availableSupply) === "High" ? "#D9363E" : "#2B8A3E" }}>{JalsetuMath.classifyRisk(selectedMapZone.predictedDemand, selectedMapZone.availableSupply)} Risk</strong>
+                          </div>
+                        </div>
+                      )}
+
+                      <hr style={{ border: 0, borderTop: "1px solid var(--color-border)", margin: "12px 0" }} />
+
+                      <h3 style={{ fontSize: "14px", fontWeight: 700, marginBottom: "var(--space-2)", color: "var(--color-text-primary)" }}>Key Spatial Insights</h3>
                       <div className="insight-item">
                         <span className="insight-icon">⚠️</span>
-                        <div><strong>Zone B</strong> has the highest shortage risk.</div>
+                        <div><strong>Zone B</strong> has the highest shortage risk (34% deficit).</div>
                       </div>
                       <div className="insight-item">
                         <span className="insight-icon">💧</span>
                         <div><strong>Zone A</strong> has surplus supply (100,000 L).</div>
                       </div>
                       <div className="insight-item">
-                        <span className="insight-icon">📉</span>
-                        <div>Total city shortage: <strong>450,000 L</strong></div>
-                      </div>
-                      <div className="insight-item">
                         <span className="insight-icon">🔄</span>
-                        <div>Recommended transfer: <strong>A → B (100,000 L)</strong></div>
+                        <div>Optimal transfer: <strong>A → B (100,000 L)</strong></div>
                       </div>
                     </div>
+
+                    {simulationActive && (
+                      <div style={{ background: "#E8F3FE", padding: "8px 12px", borderRadius: "var(--radius-sm)", border: "1px solid #C8E1FA", fontSize: "12px", color: "#0867C4", marginTop: "12px" }}>
+                        ✓ <strong>Simulation Active:</strong> 2 redistribution pipelines routed on map.
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "var(--space-6)" }}>
+                {/* Bottom Trend & Weather Grid */}
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "var(--space-6)", marginTop: "var(--space-4)" }}>
                   <div>
-                    <h2 style={{ fontSize: "15px", fontWeight: 700, marginBottom: "var(--space-3)" }}>Water Consumption Trend (Zone B)</h2>
-                    <div style={{ height: "160px", background: "#FFFFFF", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "16px" }}>
-                      <svg width="100%" height="110" viewBox="0 0 500 110" preserveAspectRatio="none">
-                        <path d="M 0 90 L 120 75 L 240 60 L 360 45 L 480 30" fill="none" stroke="#1F6FDB" strokeWidth="2.5" />
-                        <path d="M 0 95 L 120 80 L 240 50 L 360 30 L 480 15" fill="none" stroke="#D9363E" strokeWidth="2" strokeDasharray="4 4" />
-                      </svg>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "var(--color-text-secondary)" }}>
-                        <span>Oct 10</span><span>Oct 11</span><span>Oct 12</span><span>Oct 13</span><span>Oct 14</span>
-                      </div>
+                    <h2 style={{ fontSize: "15px", fontWeight: 700, marginBottom: "var(--space-3)" }}>
+                      Water Consumption Trend ({selectedMapZone?.name || "Zone B"})
+                    </h2>
+                    <div style={{ background: "#FFFFFF", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "16px" }}>
+                      <ForecastSplitChart
+                        labels={activeLabels}
+                        forecastStartIndex={forecastStartIndex}
+                        historicalData={activeSeries.historical}
+                        forecastData={activeSeries.forecast}
+                        zoneName={selectedMapZone?.name || "Zone B"}
+                      />
                     </div>
                   </div>
 
                   <div>
-                    <h2 style={{ fontSize: "15px", fontWeight: 700, marginBottom: "var(--space-3)" }}>Weather Impact</h2>
+                    <h2 style={{ fontSize: "15px", fontWeight: 700, marginBottom: "var(--space-3)" }}>Weather Covariates</h2>
                     <div className="weather-box">
                       <div>
                         <div className="weather-temp">32°C</div>
@@ -680,7 +797,7 @@ export default function JalsetuApp() {
                       <div style={{ fontSize: "36px" }} aria-hidden="true">☀️</div>
                     </div>
                     <p style={{ fontSize: "12px", color: "var(--color-text-secondary)", marginTop: "8px" }}>
-                      Higher demand expected in the next 24 hours due to heat index elevation.
+                      Higher demand predicted in next 24 hours (+8.4% above seasonal median) driven by heat index elevation.
                     </p>
                   </div>
                 </div>
@@ -793,7 +910,7 @@ export default function JalsetuApp() {
 
             <div className="auth-header">
               <div className="auth-logo-badge" aria-hidden="true">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                   <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
                 </svg>
               </div>
