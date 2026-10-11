@@ -1,0 +1,12 @@
+{
+  "test_samples": 3576,
+  "mae_litres_per_hour": 46568.4,
+  "rmse_litres_per_hour": 56648.4,
+  "baseline_previous_day_mae": 47932.6,
+  "baseline_previous_day_rmse": 62510.1,
+  "baseline_lag1_mae": 64778.1,
+  "baseline_lag1_rmse": 91419.7,
+  "improvement_vs_previous_day_mae_pct": 2.85,
+  "improvement_vs_previous_day_rmse_pct": 9.38,
+  "primary_unit": "litres_per_hour"
+}

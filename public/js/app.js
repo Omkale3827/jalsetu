@@ -7,10 +7,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function initJalsetuApp() {
-  // Load Canonical Zones Data
+  // Load Canonical Zones Data (Priority: Flask ML backend port 5000 -> relative /api/zones -> fallback JSON)
   try {
-    const res = await fetch('/api/zones');
-    if (res.ok) {
+    let res = null;
+    try {
+      res = await fetch('http://127.0.0.1:5000/api/zones');
+    } catch (e) {
+      res = await fetch('/api/zones');
+    }
+    if (res && res.ok) {
       window.JalsetuState.zones = await res.json();
     } else {
       // Fallback in case served statically
