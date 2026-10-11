@@ -5,17 +5,20 @@ import React, { useEffect, useState } from "react";
 interface AnimatedKpiValueProps {
   value: number;
   unit?: string;
+  suffix?: string;
   duration?: number;
   className?: string;
 }
 
 export default function AnimatedKpiValue({
   value,
-  unit = "L",
+  unit,
+  suffix = " L",
   duration = 900,
   className = ""
 }: AnimatedKpiValueProps) {
   const [displayValue, setDisplayValue] = useState(0);
+  const displayUnit = unit !== undefined ? unit : suffix;
 
   useEffect(() => {
     // Respect prefers-reduced-motion
@@ -48,7 +51,7 @@ export default function AnimatedKpiValue({
   return (
     <span className={className}>
       {displayValue.toLocaleString("en-IN")}
-      {unit && <span className="unit"> {unit}</span>}
+      {displayUnit && <span className="unit">{displayUnit.startsWith(" ") ? displayUnit : ` ${displayUnit}`}</span>}
     </span>
   );
 }

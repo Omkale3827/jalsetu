@@ -8,12 +8,14 @@ import AnimatedKpiValue from "@/components/AnimatedKpiValue";
 import ForecastSplitChart from "@/components/ForecastSplitChart";
 import ReportWastageView from "@/components/ReportWastageView";
 
-// Dynamically import Leaflet component with SSR disabled
+// Dynamically import Leaflet components with SSR disabled
 const InteractiveRiskMap = dynamic(() => import("@/components/InteractiveRiskMap"), {
   ssr: false,
   loading: () => (
-    <div style={{ height: "420px", display: "flex", alignItems: "center", justifyContent: "center", background: "#F7FAFB", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)" }}>
-      <span style={{ color: "var(--color-primary)", fontWeight: 600 }}>Loading City GIS Spatial Network...</span>
+    <div style={{ height: "420px", display: "flex", alignItems: "center", justifyContent: "center", background: "#F1F5F9", border: "1px solid var(--cmd-border)", borderRadius: "var(--radius-md)" }}>
+      <span style={{ color: "var(--cmd-hydro-blue)", fontWeight: 600, fontFamily: "var(--font-mono)", fontSize: "13px" }}>
+        INITIALIZING GIS SPATIAL NETWORK LAYERS...
+      </span>
     </div>
   )
 });
@@ -73,7 +75,7 @@ export default function JalsetuApp() {
     setReports((prev) => prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r)));
   };
 
-  // Fetch real telemetry from backend API route
+  // Fetch telemetry from backend API route
   useEffect(() => {
     async function loadTelemetry() {
       try {
@@ -93,10 +95,12 @@ export default function JalsetuApp() {
     loadTelemetry();
   }, [selectedHorizon, totalAvailableSupply]);
 
-  // Totals
+  // Aggregate Metrics
   const totalDemand = zones.reduce((s, z) => s + z.predictedDemand, 0);
   const totalCurrentSupply = zones.reduce((s, z) => s + z.availableSupply, 0);
   const totalShortage = zones.reduce((s, z) => s + JalsetuMath.calculateShortage(z.predictedDemand, z.availableSupply), 0);
+  const criticalZonesCount = zones.filter((z) => JalsetuMath.classifyRisk(z.predictedDemand, z.availableSupply) === "High").length;
+  const deficitPercentage = totalDemand > 0 ? ((totalShortage / totalDemand) * 100).toFixed(1) : "0.0";
 
   // Redistribution calculation
   const redistributionPlan = JalsetuMath.redistributeSupply(zones, totalAvailableSupply);
@@ -113,298 +117,401 @@ export default function JalsetuApp() {
   ];
   const forecastStartIndex = telemetry?.series?.forecastStartIndex ?? 6;
 
-  const handleRoleTabChange = (role: "operator" | "analyst") => {
-    setSelectedLoginRole(role);
-    setLoginEmail(ROLE_PRESETS[role].email);
-  };
-
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  // Handle Role Switching
+  const handleRoleSwitch = (e: React.FormEvent) => {
     e.preventDefault();
     const preset = ROLE_PRESETS[selectedLoginRole];
     setCurrentUser({
       ...preset,
-      lastLogin: new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + " IST",
+      email: loginEmail,
+      lastLogin: `2026-10-11 ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} IST`
     });
     setIsLoginModalOpen(false);
   };
 
-  const exportCsv = () => {
-    let csv = "Zone,Initial Supply (L),Predicted Demand (L),Net Transfer (L),Recommended Allocation (L),Remaining Shortage (L)\n";
-    redistributionPlan.forEach((z) => {
-      csv += `"${z.name}",${z.availableSupply},${z.predictedDemand},${z.netTransfer},${z.recommendedAllocation},${z.remainingShortage}\n`;
-    });
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `jalsetu_water_redistribution_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-  };
+  const navItems = [
+    { id: "home", label: "Overview", idx: "01" },
+    { id: "prediction", label: "Demand Prediction", idx: "02" },
+    { id: "anomalies", label: "Anomaly Forensics", idx: "03" },
+    { id: "shortages", label: "Shortage Matrix", idx: "04" },
+    { id: "redistribution", label: "Redistribution Plan", idx: "05" },
+    { id: "map", label: "GIS Network Map", idx: "06" },
+    { id: "report", label: "Citizen Leak Desk", idx: "07" },
+    { id: "about", label: "Operations Manual", idx: "08" },
+  ];
 
   return (
-    <>
-      <a href="#main-content" className="skip-link">Skip to main content</a>
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <a href="#main-content" className="skip-link">Skip to Municipal Operations Content</a>
 
-      {/* Top Navbar */}
-      <header className="navbar" role="banner">
-        <div className="container nav-container">
-          <div className="brand" onClick={() => setActiveView("home")} style={{ cursor: "pointer" }}>
-            <span className="brand-icon" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      {/* TOP COMMAND MASTHEAD */}
+      <header className="command-masthead" role="banner">
+        {/* Real-time Telemetry Status Ticker */}
+        <div className="telemetry-ticker">
+          <div className="cmd-container ticker-inner">
+            <div className="ticker-group">
+              <div className="ticker-item">
+                <span className="pulse-dot"></span>
+                <span>SYSTEM: SCADA TELEMETRY ONLINE</span>
+              </div>
+              <span style={{ color: "rgba(255,255,255,0.2)" }}>|</span>
+              <div className="ticker-item">
+                <span>SECTOR: {selectedCity.toUpperCase()} METROPOLITAN (DIV-04)</span>
+              </div>
+              <span style={{ color: "rgba(255,255,255,0.2)" }}>|</span>
+              <div className="ticker-item">
+                <span>DEFICIT INDEX: <strong style={{ color: "#FCA5A5" }}>{deficitPercentage}%</strong></span>
+              </div>
+            </div>
+
+            <div className="ticker-group">
+              <div className="ticker-item">
+                <span className="pulse-dot danger"></span>
+                <span>ACTIVE CITIZEN LEAK PINS: <strong style={{ color: "#FCA5A5" }}>{reports.length}</strong> (1 BURST IN ZONE B)</span>
+              </div>
+              <span style={{ color: "rgba(255,255,255,0.2)" }}>|</span>
+              <div className="ticker-item">
+                <span>2026-10-11 12:55 IST</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Primary Command Station Header */}
+        <div className="cmd-container masthead-nav">
+          <div className="brand-station" onClick={() => setActiveView("home")}>
+            <div className="station-badge" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
               </svg>
-            </span>
-            <span>Smart Water Redistribution</span>
+            </div>
+            <div className="station-title-box">
+              <span className="station-name">
+                JALSETU <span className="station-name-sub">जलसेतु · WDMS</span>
+              </span>
+              <span className="station-subtext">MUNICIPAL WATER DEMAND & REDISTRIBUTION COMMAND</span>
+            </div>
           </div>
 
-          <nav aria-label="Main Navigation">
-            <ul className="nav-links">
-              <li>
-                <button
-                  className={`nav-link ${activeView === "home" ? "active" : ""}`}
-                  onClick={() => setActiveView("home")}
-                  style={{ background: "none", border: "none" }}
-                >
-                  Home
-                </button>
-              </li>
-              <li>
-                <button
-                  className={`nav-link ${activeView === "prediction" ? "active" : ""}`}
-                  onClick={() => setActiveView("prediction")}
-                  style={{ background: "none", border: "none" }}
-                >
-                  Prediction
-                </button>
-              </li>
-              <li className="nav-dropdown">
-                <span className={`nav-link ${["anomalies", "shortages", "redistribution"].includes(activeView) ? "active" : ""}`}>
-                  Analysis ▾
-                </span>
-                <ul className="nav-dropdown-menu">
-                  <li className="nav-dropdown-item">
-                    <a href="#anomalies" onClick={(e) => { e.preventDefault(); setActiveView("anomalies"); }}>Abnormal Consumption</a>
-                  </li>
-                  <li className="nav-dropdown-item">
-                    <a href="#shortages" onClick={(e) => { e.preventDefault(); setActiveView("shortages"); }}>Shortage Prediction</a>
-                  </li>
-                  <li className="nav-dropdown-item">
-                    <a href="#redistribution" onClick={(e) => { e.preventDefault(); setActiveView("redistribution"); }}>Redistribution Plan</a>
-                  </li>
-                </ul>
-              </li>
-              <li>
-                <button
-                  className={`nav-link ${activeView === "map" ? "active" : ""}`}
-                  onClick={() => setActiveView("map")}
-                  style={{ background: "none", border: "none" }}
-                >
-                  Map
-                </button>
-              </li>
-              <li>
-                <button
-                  className={`nav-link ${activeView === "report" ? "active" : ""}`}
-                  onClick={() => { setActiveView("report"); setReportInitialTab("submit"); }}
-                  style={{ background: "none", border: "none" }}
-                >
-                  Report
-                </button>
-              </li>
-              <li>
-                <button
-                  className={`nav-link ${activeView === "about" ? "active" : ""}`}
-                  onClick={() => setActiveView("about")}
-                  style={{ background: "none", border: "none" }}
-                >
-                  About
-                </button>
-              </li>
+          {/* Tactical Nav Tabs */}
+          <nav aria-label="Command Station Navigation">
+            <ul className="tactical-nav-list">
+              {navItems.map((item) => (
+                <li key={item.id} className="tactical-nav-item">
+                  <button
+                    className={activeView === item.id ? "active" : ""}
+                    onClick={() => {
+                      setActiveView(item.id);
+                      if (item.id === "report") setReportInitialTab("submit");
+                    }}
+                  >
+                    <span className="nav-idx">{item.idx}</span>
+                    <span>{item.label}</span>
+                  </button>
+                </li>
+              ))}
             </ul>
           </nav>
 
-          <div className="nav-right-actions">
-            <button
-              id="nav-user-btn"
-              className="user-badge"
-              title="Click to view Profile / Switch Account"
-              aria-label="Current User Profile"
-              style={{ border: "none", cursor: "pointer" }}
-              onClick={() => setActiveView("profile")}
-            >
-              <span style={{ fontWeight: 700 }}>{currentUser.avatarInitials}</span>
-            </button>
+          {/* Operator Badge */}
+          <div
+            className="operator-crest"
+            onClick={() => setIsLoginModalOpen(true)}
+            title="Authorized Municipal Officer - Click to Switch User"
+          >
+            <div className="crest-avatar">{currentUser.avatarInitials}</div>
+            <div className="crest-meta">
+              <span className="crest-name">{currentUser.name.split(" ")[0]} ({currentUser.avatarInitials})</span>
+              <span className="crest-role">{currentUser.role.split(" ")[0]} · TIER-1</span>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Main Views Container */}
-      <main id="main-content" className="main-content" role="main">
-        <div className="container">
+      {/* MAIN OPERATIONAL SURFACE */}
+      <main id="main-content" style={{ flex: 1, paddingBottom: "var(--space-8)" }} role="main">
+        <div className="cmd-container">
 
-          {/* VIEW 1: HOME / DASHBOARD */}
+          {/* VIEW 1: OVERVIEW & SITUATION ROOM */}
           {activeView === "home" && (
-            <section className="page-view active" aria-labelledby="home-hero-title">
-              <div className="hero-card">
-                <div className="hero-left">
-                  <h1 id="home-hero-title" className="hero-title">Smarter Water<br />for a Better Tomorrow</h1>
-                  <p className="hero-subtitle">Predicting demand. Detecting shortages.<br />Recommending better distribution.</p>
-                  
-                  <div className="hero-controls">
-                    <div className="form-group" style={{ minWidth: "180px" }}>
-                      <label htmlFor="city-selector" className="form-label">Select City</label>
-                      <select
-                        id="city-selector"
-                        className="form-select"
-                        value={selectedCity}
-                        onChange={(e) => setSelectedCity(e.target.value)}
-                      >
-                        <option value="Thane">Thane</option>
-                        <option value="Pune">Pune</option>
-                        <option value="Navi Mumbai">Navi Mumbai</option>
-                      </select>
+            <div>
+              {/* Situation Room Console */}
+              <div className="situation-console">
+                <div className="console-header-strip">
+                  <span>OPERATIONAL SITUATION ROOM · THANE CENTRAL DISTRICT</span>
+                  <span>TIME HORIZON: {selectedHorizon.toUpperCase()} · ALGORITHM: LIGHTGBM + MAD FORENSICS</span>
+                </div>
+
+                <div className="console-split-body">
+                  {/* Left: District Water Balance */}
+                  <div className="balance-sector">
+                    <div className="sector-headline">District Hydraulic Equilibrium</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <span style={{ fontSize: "18px", fontWeight: 700, color: "var(--cmd-text-heading)" }}>
+                        {JalsetuMath.formatNumber(totalCurrentSupply)} L <span style={{ fontSize: "12px", color: "var(--cmd-text-muted)" }}>Available</span>
+                      </span>
+                      <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--cmd-critical-red)" }}>
+                        Deficit: {JalsetuMath.formatNumber(totalShortage)} L ({deficitPercentage}%)
+                      </span>
                     </div>
-                    <button className="btn btn-primary" onClick={() => setActiveView("prediction")}>Get Started</button>
-                  </div>
-                </div>
 
-                <div className="hero-visual" style={{ background: "transparent", border: "none", width: "380px", height: "230px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <img
-                    src="/assets/smart_city_hero.png"
-                    alt="Smart City Water Network"
-                    style={{ width: "100%", height: "100%", objectFit: "contain", filter: "drop-shadow(0 4px 12px rgba(1, 42, 92, 0.08))" }}
-                  />
-                </div>
-              </div>
+                    <div className="balance-gauge-track" title={`Supply: ${totalCurrentSupply} L, Deficit: ${totalShortage} L`}>
+                      <div
+                        className="gauge-fill-supply"
+                        style={{ width: `${Math.min(100, (totalCurrentSupply / (totalDemand || 1)) * 100)}%` }}
+                      />
+                      <div
+                        className="gauge-fill-deficit"
+                        style={{ width: `${Math.min(100, (totalShortage / (totalDemand || 1)) * 100)}%` }}
+                      />
+                    </div>
 
-              {/* 4 Animated KPI Cards with brief load counting */}
-              <div className="kpi-grid">
-                <div className="kpi-card">
-                  <div className="kpi-icon-box blue" aria-hidden="true">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                    <div className="balance-numbers-grid">
+                      <div className="telemetry-cell">
+                        <span className="cell-label">Predicted Demand</span>
+                        <span className="cell-val">{JalsetuMath.formatNumber(totalDemand / 1000)}<span className="cell-unit">k L</span></span>
+                      </div>
+                      <div className="telemetry-cell">
+                        <span className="cell-label">Allocated Buffer</span>
+                        <span className="cell-val">{JalsetuMath.formatNumber(totalCurrentSupply / 1000)}<span className="cell-unit">k L</span></span>
+                      </div>
+                      <div className="telemetry-cell">
+                        <span className="cell-label">Critical Sinks</span>
+                        <span className="cell-val" style={{ color: "var(--cmd-critical-red)" }}>{criticalZonesCount}<span className="cell-unit">Zones</span></span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="kpi-content">
-                    <span className="kpi-label">Total Demand (Today)</span>
-                    <span className="kpi-value">
-                      <AnimatedKpiValue value={totalDemand} />
-                    </span>
-                  </div>
-                </div>
 
-                <div className="kpi-card">
-                  <div className="kpi-icon-box green" aria-hidden="true">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 12h10M12 7v10"/></svg>
-                  </div>
-                  <div className="kpi-content">
-                    <span className="kpi-label">Available Supply</span>
-                    <span className="kpi-value positive">
-                      <AnimatedKpiValue value={totalCurrentSupply} />
-                    </span>
-                  </div>
-                </div>
+                  {/* Right: Urgent Corroboration Alert Hub */}
+                  <div className="corroboration-sector">
+                    <div>
+                      <div className="urgent-badge-row">
+                        <span className="urgent-pill">
+                          <span>⚡</span> SURGE EVENT DETECTED
+                        </span>
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--cmd-critical-red)", fontWeight: 700 }}>
+                          RESIDUAL Z-SCORE: +4.8σ
+                        </span>
+                      </div>
 
-                <div className="kpi-card">
-                  <div className="kpi-icon-box red" aria-hidden="true">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                  </div>
-                  <div className="kpi-content">
-                    <span className="kpi-label">Estimated Shortage</span>
-                    <span className="kpi-value negative">
-                      <AnimatedKpiValue value={totalShortage} />
-                    </span>
-                  </div>
-                </div>
+                      <div className="corroboration-body">
+                        <h3>Critical Rupture Corroboration: Zone B (Central Commercial)</h3>
+                        <p className="corroboration-text">
+                          Consumption spiked to 850 L (+42% over MAD threshold). Live telemetry correlates with citizen photo report logged 35 minutes ago at Majiwada Junction.
+                        </p>
+                      </div>
 
-                <div className="kpi-card">
-                  <div className="kpi-icon-box teal" aria-hidden="true">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
-                  </div>
-                  <div className="kpi-content">
-                    <span className="kpi-label">Zones Monitored</span>
-                    <span className="kpi-value">{zones.length}</span>
-                  </div>
-                </div>
-              </div>
+                      <div className="corroboration-evidence-box">
+                        <strong>Evidence Tag:</strong> Report <code>MCD-2026-88F4A1</code> · Category: <strong>Burst pipe</strong> · Severity: <strong>Heavy flow</strong> · Assigned Authority: <strong>MCD Field Board</strong>
+                      </div>
+                    </div>
 
-              {/* Quick Access */}
-              <h2 style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-text-primary)", marginBottom: "var(--space-3)" }}>Quick Access</h2>
-              <div className="quick-access-grid">
-                <div className="quick-card" onClick={() => setActiveView("prediction")}>
-                  <div className="quick-card-icon" style={{ background: "#E8F3FE", color: "#0867C4" }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-6 6"/></svg>
+                    <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                      <button
+                        className="btn-cmd btn-cmd-danger btn-cmd-sm"
+                        onClick={() => { setActiveView("anomalies"); }}
+                      >
+                        Investigate Surge Forensics
+                      </button>
+                      <button
+                        className="btn-cmd btn-cmd-secondary btn-cmd-sm"
+                        onClick={() => { setActiveView("redistribution"); }}
+                      >
+                        Dispatch Rebalance Flow
+                      </button>
+                    </div>
                   </div>
-                  <h3 className="quick-card-title">Demand Prediction</h3>
-                  <p className="quick-card-desc">View forecasted water usage for each zone</p>
-                </div>
-
-                <div className="quick-card" onClick={() => setActiveView("anomalies")}>
-                  <div className="quick-card-icon" style={{ background: "#FDC8C8", color: "#C62828" }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-                  </div>
-                  <h3 className="quick-card-title">Check for Anomalies</h3>
-                  <p className="quick-card-desc">Find unusual consumption patterns & surges</p>
-                </div>
-
-                <div className="quick-card" onClick={() => setActiveView("shortages")}>
-                  <div className="quick-card-icon" style={{ background: "#E8F3FE", color: "#0867C4" }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
-                  </div>
-                  <h3 className="quick-card-title">View Shortages</h3>
-                  <p className="quick-card-desc">See which zones may face water shortage</p>
-                </div>
-
-                <div className="quick-card" onClick={() => setActiveView("redistribution")}>
-                  <div className="quick-card-icon" style={{ background: "#D5F6D8", color: "#14632F" }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
-                  </div>
-                  <h3 className="quick-card-title">Redistribution Plan</h3>
-                  <p className="quick-card-desc">Get water allocation recommendations</p>
-                </div>
-
-                <div className="quick-card" onClick={() => { setActiveView("report"); setReportInitialTab("submit"); }}>
-                  <div className="quick-card-icon" style={{ background: "#E8F3FE", color: "#0867C4" }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                  </div>
-                  <h3 className="quick-card-title">Report Water Wastage</h3>
-                  <p className="quick-card-desc">Upload photos & pin leaks for municipal resolution</p>
                 </div>
               </div>
 
-              {/* Priority Zones Overview Table */}
-              <div className="card">
-                <div className="card-header">
+              {/* Telemetry Ribbon Bar */}
+              <div className="telemetry-ribbon-bar">
+                <div className="ribbon-card">
+                  <div className="ribbon-top">
+                    <span className="ribbon-label">Total Projected Demand</span>
+                    <span style={{ fontSize: "11px", color: "var(--cmd-text-muted)" }}>24h Horizon</span>
+                  </div>
+                  <div className="ribbon-figure">
+                    <AnimatedKpiValue value={totalDemand} suffix=" L" />
+                  </div>
+                  <div className="ribbon-sub">Summed across {zones.length} monitored municipal wds</div>
+                </div>
+
+                <div className="ribbon-card green">
+                  <div className="ribbon-top">
+                    <span className="ribbon-label">Available Municipal Supply</span>
+                    <span style={{ fontSize: "11px", color: "var(--cmd-adequate-green)" }}>+Buffer</span>
+                  </div>
+                  <div className="ribbon-figure">
+                    <AnimatedKpiValue value={totalAvailableSupply} suffix=" L" />
+                  </div>
+                  <div className="ribbon-sub">Scenario baseline adjustable in What-If console</div>
+                </div>
+
+                <div className="ribbon-card red">
+                  <div className="ribbon-top">
+                    <span className="ribbon-label">Estimated Water Deficit</span>
+                    <span style={{ fontSize: "11px", color: "var(--cmd-critical-red)" }}>Deficit Gap</span>
+                  </div>
+                  <div className="ribbon-figure" style={{ color: "var(--cmd-critical-red)" }}>
+                    <AnimatedKpiValue value={totalShortage} suffix=" L" />
+                  </div>
+                  <div className="ribbon-sub">{deficitPercentage}% shortfall requires reallocation</div>
+                </div>
+
+                <div className="ribbon-card amber">
+                  <div className="ribbon-top">
+                    <span className="ribbon-label">Active Field Incidents</span>
+                    <span style={{ fontSize: "11px", color: "var(--cmd-alert-amber)" }}>MCD Intake</span>
+                  </div>
+                  <div className="ribbon-figure" style={{ color: "var(--cmd-alert-amber)" }}>
+                    {reports.length} <span style={{ fontSize: "14px", fontWeight: 500 }}>Pins</span>
+                  </div>
+                  <div className="ribbon-sub">1 Burst pipe (Zone B), 1 Secondary leak (Zone D)</div>
+                </div>
+              </div>
+
+              {/* Quick Access Workflow Hub */}
+              <div style={{ marginBottom: "var(--space-3)", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span style={{ fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700, color: "var(--cmd-text-muted)" }}>
+                  Operational Workflows & Functional Dispatch
+                </span>
+                <span style={{ fontSize: "11px", color: "var(--cmd-text-subtle)", fontFamily: "var(--font-mono)" }}>
+                  5 CORE WORKFLOW MODULES
+                </span>
+              </div>
+
+              <div className="workflow-hub-grid">
+                <div className="workflow-card" onClick={() => setActiveView("prediction")}>
                   <div>
-                    <h2 className="card-title">Operational Zone Status Overview</h2>
-                    <p className="card-subtitle">Real-time demand vs available supply for Thane District</p>
+                    <div className="workflow-idx">02 // FORECAST</div>
+                    <div className="workflow-title">Demand Prediction</div>
+                    <div className="workflow-desc">Multi-zone LightGBM consumption profiles & peak hours</div>
                   </div>
-                  <button className="btn btn-secondary btn-sm" onClick={() => setActiveView("redistribution")}>Reallocate Supply</button>
+                  <span style={{ fontSize: "11px", color: "var(--cmd-hydro-blue)", fontWeight: 600, marginTop: "8px" }}>Explore Curves →</span>
                 </div>
-                <div className="table-responsive">
-                  <table className="data-table">
+
+                <div className="workflow-card" onClick={() => setActiveView("anomalies")}>
+                  <div>
+                    <div className="workflow-idx">03 // FORENSICS</div>
+                    <div className="workflow-title">Surge & Anomaly Radar</div>
+                    <div className="workflow-desc">Residual z-scores, pipe rupture flags & citizen cross-validation</div>
+                  </div>
+                  <span style={{ fontSize: "11px", color: "var(--cmd-critical-red)", fontWeight: 600, marginTop: "8px" }}>Review Flags →</span>
+                </div>
+
+                <div className="workflow-card" onClick={() => setActiveView("shortages")}>
+                  <div>
+                    <div className="workflow-idx">04 // SHORTAGE</div>
+                    <div className="workflow-title">Shortage Assessment</div>
+                    <div className="workflow-desc">Deficit formulas, risk tier ranking & vulnerable zones</div>
+                  </div>
+                  <span style={{ fontSize: "11px", color: "var(--cmd-alert-amber)", fontWeight: 600, marginTop: "8px" }}>Inspect Matrix →</span>
+                </div>
+
+                <div className="workflow-card" onClick={() => setActiveView("redistribution")}>
+                  <div>
+                    <div className="workflow-idx">05 // BALANCING</div>
+                    <div className="workflow-title">Water-Filling Rebalancing</div>
+                    <div className="workflow-desc">Supply slider, transfer routes & progressive filling algorithm</div>
+                  </div>
+                  <span style={{ fontSize: "11px", color: "var(--cmd-adequate-green)", fontWeight: 600, marginTop: "8px" }}>Run Simulation →</span>
+                </div>
+
+                <div className="workflow-card" onClick={() => { setActiveView("report"); setReportInitialTab("submit"); }}>
+                  <div>
+                    <div className="workflow-idx">07 // ACTION</div>
+                    <div className="workflow-title">Citizen Wastage Desk</div>
+                    <div className="workflow-desc">Upload leak photos, GPS lock, track reference ID & MCD console</div>
+                  </div>
+                  <span style={{ fontSize: "11px", color: "var(--cmd-hydro-blue)", fontWeight: 600, marginTop: "8px" }}>Report Incident →</span>
+                </div>
+              </div>
+
+              {/* Tactical Crisis Table */}
+              <div className="cmd-table-container">
+                <div className="cmd-table-header">
+                  <div>
+                    <div className="cmd-table-title">District Hydraulic Status Matrix</div>
+                    <div className="cmd-table-subtitle">Live sensor readings vs algorithmic demand predictions across Thane Metropolitan Zones</div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                    <button className="btn-cmd btn-cmd-secondary btn-cmd-sm" onClick={() => setActiveView("map")}>
+                      <span>🗺️</span> View on GIS Map
+                    </button>
+                    <button className="btn-cmd btn-cmd-primary btn-cmd-sm" onClick={() => setActiveView("redistribution")}>
+                      <span>⚡</span> Reallocate Supply
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ overflowX: "auto" }}>
+                  <table className="tactical-table">
                     <thead>
                       <tr>
-                        <th>Zone Name</th>
-                        <th className="text-right">Predicted Demand</th>
-                        <th className="text-right">Available Supply</th>
-                        <th className="text-right">Shortage</th>
-                        <th className="text-center">Shortage Risk</th>
+                        <th>Zone Identifier</th>
+                        <th style={{ textAlign: "right" }}>Predicted Demand</th>
+                        <th style={{ textAlign: "right" }}>Available Supply</th>
+                        <th style={{ textAlign: "right" }}>Estimated Shortage</th>
+                        <th style={{ textAlign: "center" }}>Risk Tier</th>
+                        <th style={{ textAlign: "center" }}>Sensor Anomaly Status</th>
+                        <th style={{ textAlign: "right" }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {zones.map((zone) => {
                         const shortage = JalsetuMath.calculateShortage(zone.predictedDemand, zone.availableSupply);
                         const risk = JalsetuMath.classifyRisk(zone.predictedDemand, zone.availableSupply);
-                        const pillClass = risk === "High" ? "danger" : risk === "Medium" ? "warning" : "success";
+                        const isBurstCorroborated = zone.id === "zone-b";
+
                         return (
                           <tr key={zone.id}>
-                            <td><strong>{zone.name}</strong> <span style={{ color: "var(--color-text-secondary)", fontSize: "12px" }}>({zone.displayName.split("(")[1] || ""}</span></td>
-                            <td className="text-right">{JalsetuMath.formatNumber(zone.predictedDemand)} L</td>
-                            <td className="text-right">{JalsetuMath.formatNumber(zone.availableSupply)} L</td>
-                            <td className={`text-right`} style={shortage > 0 ? { color: "var(--color-value-negative)", fontWeight: 600 } : {}}>
-                              {JalsetuMath.formatNumber(shortage)} L
+                            <td>
+                              <div style={{ fontWeight: 700, color: "var(--cmd-text-heading)" }}>{zone.name}</div>
+                              <div style={{ fontSize: "11px", color: "var(--cmd-text-muted)" }}>{zone.displayName}</div>
                             </td>
-                            <td className="text-center">
-                              <span className={`status-pill ${pillClass}`}>{risk} Risk</span>
+                            <td className="num-cell">
+                              {JalsetuMath.formatNumber(zone.predictedDemand)} <span style={{ fontSize: "11px", color: "var(--cmd-text-subtle)" }}>L</span>
+                            </td>
+                            <td className="num-cell">
+                              {JalsetuMath.formatNumber(zone.availableSupply)} <span style={{ fontSize: "11px", color: "var(--cmd-text-subtle)" }}>L</span>
+                            </td>
+                            <td className="num-cell" style={{ color: shortage > 0 ? "var(--cmd-critical-red)" : "var(--cmd-adequate-green)" }}>
+                              {shortage > 0 ? `-${JalsetuMath.formatNumber(shortage)}` : "0"} <span style={{ fontSize: "11px" }}>L</span>
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              {risk === "High" ? (
+                                <span className="badge-tag critical">High Risk</span>
+                              ) : risk === "Medium" ? (
+                                <span className="badge-tag alert">Medium Risk</span>
+                              ) : (
+                                <span className="badge-tag adequate">Adequate</span>
+                              )}
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              {isBurstCorroborated ? (
+                                <span className="badge-tag critical" title="Corroborated by active citizen burst-pipe report">
+                                  💥 Surge + Leak Pin
+                                </span>
+                              ) : zone.anomaly.detected ? (
+                                <span className="badge-tag alert">
+                                  ⚠️ Elev ({zone.anomaly.deviationPct}%)
+                                </span>
+                              ) : (
+                                <span className="badge-tag adequate">Normal</span>
+                              )}
+                            </td>
+                            <td style={{ textAlign: "right" }}>
+                              <button
+                                className="btn-cmd btn-cmd-secondary btn-cmd-sm"
+                                onClick={() => {
+                                  setSelectedZoneFilter(zone.id);
+                                  setActiveView("prediction");
+                                }}
+                              >
+                                Forensics
+                              </button>
                             </td>
                           </tr>
                         );
@@ -413,418 +520,405 @@ export default function JalsetuApp() {
                   </table>
                 </div>
               </div>
-            </section>
+            </div>
           )}
 
-          {/* VIEW 2: DEMAND PREDICTION WITH HISTORICAL SOLID & PREDICTED DASHED */}
+          {/* VIEW 2: DEMAND PREDICTION CONSOLE */}
           {activeView === "prediction" && (
-            <section className="page-view active" aria-labelledby="pred-page-title">
-              <div className="card">
-                <h1 id="pred-page-title" className="card-title" style={{ fontSize: "22px", marginBottom: "4px" }}>Demand Prediction</h1>
-                <p className="card-subtitle" style={{ marginBottom: "var(--space-5)" }}>
-                  AI model predicts future water consumption for each zone based on historical telemetry and weather covariates.
-                </p>
-
-                <div style={{ display: "flex", gap: "var(--space-4)", alignItems: "flex-end", marginBottom: "var(--space-6)", flexWrap: "wrap" }}>
-                  <div className="form-group" style={{ minWidth: "180px" }}>
-                    <label className="form-label">Select Date / Horizon</label>
-                    <select
-                      className="form-select"
-                      value={selectedHorizon}
-                      onChange={(e) => setSelectedHorizon(e.target.value)}
-                    >
-                      <option value="24h">Next 24 Hours</option>
-                      <option value="48h">Next 48 Hours</option>
-                      <option value="7d">Next 7 Days</option>
-                    </select>
-                  </div>
-
-                  <div className="form-group" style={{ minWidth: "180px" }}>
-                    <label className="form-label">Select Zone</label>
-                    <select
-                      className="form-select"
-                      value={selectedZoneFilter}
-                      onChange={(e) => setSelectedZoneFilter(e.target.value)}
-                    >
-                      <option value="all">Zone B (Central Commercial — Primary Alert)</option>
-                      {zones.map((z) => (
-                        <option key={z.id} value={z.id}>{z.name} ({z.displayName})</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <button className="btn btn-primary" onClick={() => alert("Model inference refreshed with latest meter readings.")}>Predict</button>
+            <div className="cmd-table-container">
+              <div className="cmd-table-header">
+                <div>
+                  <div className="cmd-table-title">Forecasting & Temporal Scenario Console</div>
+                  <div className="cmd-table-subtitle">LightGBM Multi-Step Recursive Engine vs Seasonal Naive Baseline</div>
                 </div>
 
-                {/* Animated Chart: Solid Blue Historical, Dashed Blue Forecast, Vertical Line Indicator */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-2)" }}>
-                  <h2 style={{ fontSize: "16px", fontWeight: 700 }}>
-                    Water Demand Profile ({zones.find(z => z.id === activeZoneKey)?.name || "Zone B"})
-                  </h2>
-                  <div style={{ display: "flex", gap: "16px", fontSize: "12px" }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span style={{ width: "16px", height: "3px", background: "#1F6FDB" }}></span> Solid: Historical Actual
-                    </span>
-                    <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span style={{ width: "16px", height: "3px", borderTop: "2px dashed #0867C4" }}></span> Dashed: Model Predicted
-                    </span>
-                  </div>
-                </div>
+                <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+                  <select
+                    className="cmd-select"
+                    value={selectedHorizon}
+                    onChange={(e) => setSelectedHorizon(e.target.value)}
+                    aria-label="Select Forecast Horizon"
+                  >
+                    <option value="24h">24h Operational Horizon</option>
+                    <option value="48h">48h Extended Horizon</option>
+                    <option value="7d">7d Weekly Planning Scenario</option>
+                  </select>
 
-                <div style={{ background: "#FFFFFF", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "16px", marginBottom: "var(--space-6)" }}>
+                  <select
+                    className="cmd-select"
+                    value={selectedZoneFilter}
+                    onChange={(e) => setSelectedZoneFilter(e.target.value)}
+                    aria-label="Filter Zone"
+                  >
+                    <option value="all">All Zones Aggregate</option>
+                    {zones.map((z) => (
+                      <option key={z.id} value={z.id}>{z.name} ({z.displayName})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ padding: "var(--space-5)" }}>
+                {/* Forecast Chart */}
+                <div style={{ background: "#FFFFFF", border: "1px solid var(--cmd-border)", borderRadius: "var(--radius-md)", padding: "16px", marginBottom: "var(--space-5)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "12px" }}>
+                    <div>
+                      <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--cmd-text-heading)" }}>
+                        Demand Curve Decomposition ({selectedZoneFilter === "all" ? "District Profile" : zones.find(z => z.id === selectedZoneFilter)?.name})
+                      </h3>
+                      <span style={{ fontSize: "11px", color: "var(--cmd-text-muted)" }}>
+                        Solid Navy = Historical Telemetry · Dashed Blue = LightGBM Model Prediction · Amber Line = Forecast Horizon Cutoff
+                      </span>
+                    </div>
+
+                    <div style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--cmd-adequate-green)", fontWeight: 700 }}>
+                      MODEL ACCURACY: sMAPE 4.2% (BEATS NAIVE 11.8%)
+                    </div>
+                  </div>
+
                   <ForecastSplitChart
                     labels={activeLabels}
                     forecastStartIndex={forecastStartIndex}
                     historicalData={activeSeries.historical}
                     forecastData={activeSeries.forecast}
-                    zoneName={zones.find(z => z.id === activeZoneKey)?.name || "Zone B"}
+                    zoneName={selectedZoneFilter === "all" ? "Thane District" : zones.find(z => z.id === selectedZoneFilter)?.name || "Zone"}
                   />
                 </div>
 
-                {/* Table */}
-                <h2 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "var(--space-3)" }}>Predicted Demand (Next 24 Hours)</h2>
-                <div className="table-responsive">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Zone</th>
-                        <th className="text-right">Predicted Demand (kL)</th>
-                        <th className="text-center">Trend</th>
+                {/* Granular Breakdown Table */}
+                <table className="tactical-table">
+                  <thead>
+                    <tr>
+                      <th>Zone</th>
+                      <th style={{ textAlign: "right" }}>Forecast Mean (L)</th>
+                      <th style={{ textAlign: "right" }}>Peak Hour Draw (L)</th>
+                      <th style={{ textAlign: "center" }}>Trend Vector</th>
+                      <th style={{ textAlign: "right" }}>Variance vs Baseline</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {zones.map((zone) => (
+                      <tr key={zone.id}>
+                        <td><strong>{zone.name}</strong> ({zone.displayName})</td>
+                        <td className="num-cell">{JalsetuMath.formatNumber(zone.predictedDemand)} L</td>
+                        <td className="num-cell" style={{ color: "var(--cmd-critical-red)" }}>
+                          {JalsetuMath.formatNumber(Math.round(zone.predictedDemand * 0.082))} L/h
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", fontWeight: 700, color: zone.trend === "Increase" ? "var(--cmd-critical-red)" : "var(--cmd-adequate-green)" }}>
+                            {zone.trend === "Increase" ? "▲ RISING (+14%)" : zone.trend === "Decrease" ? "▼ RECEDING (-6%)" : "■ STABLE"}
+                          </span>
+                        </td>
+                        <td className="num-cell">+{((zone.anomaly.deviationPct || 2.4)).toFixed(1)}%</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {zones.map((zone) => {
-                        const trendIcon = zone.trend === "Increase" ? "↑" : zone.trend === "Decrease" ? "↓" : "—";
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW 3: ANOMALIES & SURGES */}
+          {activeView === "anomalies" && (
+            <div className="cmd-table-container">
+              <div className="cmd-table-header">
+                <div>
+                  <div className="cmd-table-title">Forensic Anomaly & Surge Radar</div>
+                  <div className="cmd-table-subtitle">Robust Residual Z-Score Scoring: <code>Score = (Actual − Expected) / (1.4826 × MAD)</code></div>
+                </div>
+
+                <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                  <select
+                    className="cmd-select"
+                    value={anomalySeverityFilter}
+                    onChange={(e) => setAnomalySeverityFilter(e.target.value)}
+                  >
+                    <option value="all">All Classifications</option>
+                    <option value="High Alert">Pipe Surges (Critical)</option>
+                    <option value="High">Sustained Elevated</option>
+                    <option value="Normal">Within Normal Bands</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ padding: "var(--space-5)" }}>
+                {/* Forensic Surge Alert Card */}
+                <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "var(--radius-md)", padding: "var(--space-4)", marginBottom: "var(--space-5)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                    <div>
+                      <span className="badge-tag critical" style={{ marginBottom: "6px" }}>CRITICAL SURGE RADAR</span>
+                      <h3 style={{ fontSize: "16px", fontWeight: 700, color: "var(--cmd-critical-text)", margin: "4px 0" }}>
+                        Active Pipe Rupture Identified: Zone B (Central Commercial)
+                      </h3>
+                      <p style={{ fontSize: "13px", color: "var(--cmd-text-body)", margin: 0 }}>
+                        Measured consumption is 850 L/h vs expected 520 L/h. Deviation: <strong>+42.0%</strong>. Statistical significance: <strong>4.8σ</strong>.
+                      </p>
+                    </div>
+
+                    <button
+                      className="btn-cmd btn-cmd-primary btn-cmd-sm"
+                      onClick={() => { setActiveView("report"); setReportInitialTab("track"); }}
+                    >
+                      View Citizen Evidence Photo
+                    </button>
+                  </div>
+
+                  <div style={{ background: "#FFFFFF", border: "1px dashed #FCA5A5", borderRadius: "var(--radius-sm)", padding: "10px 14px", fontSize: "12px", marginTop: "10px" }}>
+                    🔍 <strong>Cross-Validation with Citizen Reports:</strong> Active report <code>MCD-2026-88F4A1</code> confirms underground feeder main burst at Majiwada Junction. Corroborates that surge is caused by physical leak loss, not civilian demand spike.
+                  </div>
+                </div>
+
+                {/* Anomaly Classification Table */}
+                <table className="tactical-table">
+                  <thead>
+                    <tr>
+                      <th>Zone</th>
+                      <th>Observed Draw</th>
+                      <th>Expected MAD Range</th>
+                      <th>Deviation (%)</th>
+                      <th>Classification</th>
+                      <th>Recommended Triage</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {zones
+                      .filter((z) => anomalySeverityFilter === "all" || z.anomaly.severity === anomalySeverityFilter)
+                      .map((zone) => (
+                        <tr key={zone.id}>
+                          <td><strong>{zone.name}</strong> ({zone.displayName})</td>
+                          <td className="num-cell">{zone.currentConsumption} L/h</td>
+                          <td className="num-cell">{zone.normalRange[0]} – {zone.normalRange[1]} L/h</td>
+                          <td className="num-cell" style={{ color: zone.anomaly.deviationPct > 15 ? "var(--cmd-critical-red)" : "inherit" }}>
+                            {zone.anomaly.deviationPct > 0 ? `+${zone.anomaly.deviationPct}%` : `${zone.anomaly.deviationPct}%`}
+                          </td>
+                          <td>
+                            {zone.anomaly.severity === "High Alert" ? (
+                              <span className="badge-tag critical">Sudden Pipe Surge</span>
+                            ) : zone.anomaly.severity === "High" ? (
+                              <span className="badge-tag alert">Sustained Elevation</span>
+                            ) : (
+                              <span className="badge-tag adequate">Normal Profile</span>
+                            )}
+                          </td>
+                          <td>
+                            {zone.anomaly.severity === "High Alert" ? (
+                              <span style={{ color: "var(--cmd-critical-red)", fontWeight: 600, fontSize: "12px" }}>Immediate Valve Throttle & Inspection</span>
+                            ) : zone.anomaly.severity === "High" ? (
+                              <span style={{ color: "var(--cmd-alert-amber)", fontWeight: 600, fontSize: "12px" }}>Monitor Sub-Distribution Nodes</span>
+                            ) : (
+                              <span style={{ color: "var(--cmd-adequate-green)", fontSize: "12px" }}>Standard Flow Rate</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW 4: SHORTAGE MATRIX */}
+          {activeView === "shortages" && (
+            <div className="cmd-table-container">
+              <div className="cmd-table-header">
+                <div>
+                  <div className="cmd-table-title">Municipal Shortage Deficit Matrix</div>
+                  <div className="cmd-table-subtitle">Deterministic Shortage Calculation: <code>shortage_i = max(0, predicted_demand_i − available_supply_i)</code></div>
+                </div>
+
+                <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                  <select
+                    className="cmd-select"
+                    value={shortageRiskFilter}
+                    onChange={(e) => setShortageRiskFilter(e.target.value)}
+                  >
+                    <option value="all">All Risk Tiers</option>
+                    <option value="High">High Deficit (≥ 20%)</option>
+                    <option value="Medium">Medium Deficit (≥ 5%)</option>
+                    <option value="Low">Low / Balanced</option>
+                  </select>
+
+                  <button
+                    className="btn-cmd btn-cmd-secondary btn-cmd-sm"
+                    onClick={() => setShortageSortAsc(!shortageSortAsc)}
+                  >
+                    Sort Deficit {shortageSortAsc ? "▲" : "▼"}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ padding: "var(--space-5)" }}>
+                <table className="tactical-table">
+                  <thead>
+                    <tr>
+                      <th>Zone Name</th>
+                      <th style={{ textAlign: "right" }}>Predicted Demand</th>
+                      <th style={{ textAlign: "right" }}>Available Supply</th>
+                      <th style={{ textAlign: "right" }}>Net Deficit</th>
+                      <th style={{ textAlign: "right" }}>Deficit %</th>
+                      <th style={{ textAlign: "center" }}>Risk Tier</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {zones
+                      .filter((z) => shortageRiskFilter === "all" || JalsetuMath.classifyRisk(z.predictedDemand, z.availableSupply) === shortageRiskFilter)
+                      .sort((a, b) => {
+                        const sA = JalsetuMath.calculateShortage(a.predictedDemand, a.availableSupply);
+                        const sB = JalsetuMath.calculateShortage(b.predictedDemand, b.availableSupply);
+                        return shortageSortAsc ? sA - sB : sB - sA;
+                      })
+                      .map((zone) => {
+                        const shortage = JalsetuMath.calculateShortage(zone.predictedDemand, zone.availableSupply);
+                        const risk = JalsetuMath.classifyRisk(zone.predictedDemand, zone.availableSupply);
+                        const pct = ((shortage / (zone.predictedDemand || 1)) * 100).toFixed(1);
+
                         return (
                           <tr key={zone.id}>
-                            <td><strong>{zone.name}</strong></td>
-                            <td className="text-right">{JalsetuMath.formatNumber(zone.predictedDemand / 1000)}</td>
-                            <td className="text-center">
-                              <span className={`trend-indicator ${zone.trend.toLowerCase()}`}>
-                                {trendIcon} {zone.trend}
-                              </span>
+                            <td><strong>{zone.name}</strong> ({zone.displayName})</td>
+                            <td className="num-cell">{JalsetuMath.formatNumber(zone.predictedDemand)} L</td>
+                            <td className="num-cell">{JalsetuMath.formatNumber(zone.availableSupply)} L</td>
+                            <td className="num-cell" style={{ color: shortage > 0 ? "var(--cmd-critical-red)" : "var(--cmd-adequate-green)" }}>
+                              {shortage > 0 ? `-${JalsetuMath.formatNumber(shortage)}` : "0"} L
+                            </td>
+                            <td className="num-cell">{pct}%</td>
+                            <td style={{ textAlign: "center" }}>
+                              {risk === "High" ? (
+                                <span className="badge-tag critical">High Risk</span>
+                              ) : risk === "Medium" ? (
+                                <span className="badge-tag alert">Medium Risk</span>
+                              ) : (
+                                <span className="badge-tag adequate">Adequate</span>
+                              )}
                             </td>
                           </tr>
                         );
                       })}
-                    </tbody>
-                  </table>
-                </div>
+                  </tbody>
+                </table>
               </div>
-            </section>
+            </div>
           )}
 
-          {/* VIEW 3: ABNORMAL CONSUMPTION DETECTION */}
-          {activeView === "anomalies" && (
-            <section className="page-view active" aria-labelledby="anomaly-page-title">
-              <div className="card">
-                <div className="card-header">
-                  <div>
-                    <h1 id="anomaly-page-title" className="card-title" style={{ fontSize: "22px", marginBottom: "4px" }}>Abnormal Consumption Detection</h1>
-                    <p className="card-subtitle">
-                      Residual-based robust anomaly scoring (MAD z-score) isolates continuous leaks from sudden pipe surges.
-                    </p>
-                  </div>
-                  <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                    <label className="form-label" style={{ marginBottom: 0 }}>Filter Severity:</label>
-                    <select
-                      className="form-select"
-                      style={{ height: "34px", padding: "0 8px", fontSize: "13px" }}
-                      value={anomalySeverityFilter}
-                      onChange={(e) => setAnomalySeverityFilter(e.target.value)}
-                    >
-                      <option value="all">All Severities</option>
-                      <option value="High Alert">High Alert (Surges)</option>
-                      <option value="High">High (Elevations)</option>
-                      <option value="Normal">Normal</option>
-                    </select>
-                  </div>
+          {/* VIEW 5: REDISTRIBUTION PLAN & HYDRAULIC SIMULATOR */}
+          {activeView === "redistribution" && (
+            <div className="cmd-table-container">
+              <div className="cmd-table-header">
+                <div>
+                  <div className="cmd-table-title">Hydraulic Supply Redistribution Console</div>
+                  <div className="cmd-table-subtitle">Weighted Progressive Water-Filling Optimizer · Invariant: Σ allocation_i ≤ Total Supply</div>
                 </div>
 
-                <div className="table-responsive" style={{ marginBottom: "var(--space-6)" }}>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Zone</th>
-                        <th>Classification</th>
-                        <th className="text-right">Current Consumption (L)</th>
-                        <th className="text-right">Normal Range (L)</th>
-                        <th className="text-right">Deviation</th>
-                        <th className="text-center">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {zones
-                        .filter((z) => anomalySeverityFilter === "all" || z.anomaly.severity === anomalySeverityFilter)
-                        .map((zone) => {
-                          const isAlert = zone.anomaly.severity === "High Alert";
-                          const isHigh = zone.anomaly.severity === "High";
-                          const pillClass = isAlert ? "danger" : isHigh ? "warning" : "success";
-                          return (
-                            <tr key={zone.id}>
-                              <td><strong>{zone.name}</strong> <span style={{ color: "var(--color-text-secondary)", fontSize: "12px" }}>({zone.displayName})</span></td>
-                              <td>{zone.anomaly.type}</td>
-                              <td className="text-right"><strong>{zone.currentConsumption}</strong> L</td>
-                              <td className="text-right" style={{ color: "var(--color-text-secondary)" }}>{zone.normalRange[0]} – {zone.normalRange[1]} L</td>
-                              <td className="text-right" style={zone.anomaly.deviationPct > 0 ? { color: "var(--color-value-negative)", fontWeight: 600 } : {}}>
-                                {zone.anomaly.deviationPct > 0 ? `+${zone.anomaly.deviationPct}%` : `${zone.anomaly.deviationPct}%`}
-                              </td>
-                              <td className="text-center">
-                                <span className={`status-pill ${pillClass}`}>{zone.anomaly.severity}</span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
+                <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                  <button
+                    className="btn-cmd btn-cmd-primary btn-cmd-sm"
+                    onClick={() => {
+                      const csv = "zone,current_supply,recommended_allocation,net_transfer,remaining_shortage\n" +
+                        redistributionPlan.map(z => `${z.name},${z.availableSupply},${z.recommendedAllocation},${z.netTransfer},${z.remainingShortage}`).join("\n");
+                      const blob = new Blob([csv], { type: "text/csv" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `water_redistribution_plan_${new Date().toISOString().split("T")[0]}.csv`;
+                      a.click();
+                    }}
+                  >
+                    📥 Export Dispatch CSV
+                  </button>
                 </div>
+              </div>
 
-                <div className="alert-banner" role="alert">
-                  <div className="alert-banner-left">
-                    <span className="alert-icon" aria-hidden="true">⚠️</span>
+              <div style={{ padding: "var(--space-5)" }}>
+                {/* Supply Regulator Slider */}
+                <div style={{ background: "var(--cmd-surface-subtle)", border: "1px solid var(--cmd-border)", borderRadius: "var(--radius-md)", padding: "16px 20px", marginBottom: "var(--space-5)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "10px" }}>
                     <div>
-                      <div className="alert-title">Critical Pipe Surge Identified: Zone B</div>
-                      <div className="alert-subtitle">Current consumption (850 L) is +42% above normal threshold. Residual z-score: 4.8.</div>
-                      <div style={{ fontSize: "12px", marginTop: "6px", color: "#9B1C2C", display: "flex", alignItems: "center", gap: "6px", fontWeight: 600 }}>
-                        <span>🔍 <strong>Supporting Evidence:</strong> Citizen burst-pipe report logged in Zone B (ID: MCD-2026-88F4A1) under review by MCD.</span>
+                      <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--cmd-text-heading)" }}>
+                        Total Municipal Available Supply Regulator
+                      </span>
+                      <div style={{ fontSize: "11px", color: "var(--cmd-text-muted)" }}>
+                        Slide to test stress scenarios (Drought deficit vs Monsoon surplus)
                       </div>
                     </div>
-                  </div>
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    <button className="btn btn-secondary btn-sm" onClick={() => { setActiveView("report"); setReportInitialTab("track"); }}>
-                      View MCD Report
-                    </button>
-                    <button className="btn btn-primary" onClick={() => { setSelectedZoneFilter("zone-b"); setActiveView("prediction"); }}>
-                      Inspect Forecast Profile
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* VIEW 4: SHORTAGE PREDICTION */}
-          {activeView === "shortages" && (
-            <section className="page-view active" aria-labelledby="shortage-page-title">
-              <div className="card">
-                <div className="card-header">
-                  <div>
-                    <h1 id="shortage-page-title" className="card-title" style={{ fontSize: "22px", marginBottom: "4px" }}>Shortage Prediction</h1>
-                    <p className="card-subtitle">
-                      Calculates deficit per zone: <code>shortage = max(0, predicted_demand - available_supply)</code>.
-                    </p>
-                  </div>
-                  <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                    <select
-                      className="form-select"
-                      style={{ height: "34px", padding: "0 8px", fontSize: "13px" }}
-                      value={shortageRiskFilter}
-                      onChange={(e) => setShortageRiskFilter(e.target.value)}
-                    >
-                      <option value="all">All Risk Levels</option>
-                      <option value="High">High Risk (Deficit ≥ 20%)</option>
-                      <option value="Medium">Medium Risk (Deficit ≥ 5%)</option>
-                      <option value="Low">Low Risk / Adequate</option>
-                    </select>
-
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => setShortageSortAsc(!shortageSortAsc)}
-                    >
-                      Sort by Deficit {shortageSortAsc ? "↑" : "↓"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="table-responsive" style={{ marginBottom: "var(--space-6)" }}>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Zone</th>
-                        <th className="text-right">Predicted Demand (L)</th>
-                        <th className="text-right">Available Supply (L)</th>
-                        <th className="text-right">Shortage (L)</th>
-                        <th className="text-right">Deficit Ratio</th>
-                        <th className="text-center">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {zones
-                        .filter((zone) => {
-                          if (shortageRiskFilter === "all") return true;
-                          const risk = JalsetuMath.classifyRisk(zone.predictedDemand, zone.availableSupply);
-                          return risk === shortageRiskFilter;
-                        })
-                        .sort((a, b) => {
-                          const shortA = JalsetuMath.calculateShortage(a.predictedDemand, a.availableSupply);
-                          const shortB = JalsetuMath.calculateShortage(b.predictedDemand, b.availableSupply);
-                          return shortageSortAsc ? shortA - shortB : shortB - shortA;
-                        })
-                        .map((zone) => {
-                          const shortage = JalsetuMath.calculateShortage(zone.predictedDemand, zone.availableSupply);
-                          const pct = (shortage / zone.predictedDemand) * 100;
-                          const isSlight = shortage > 0 && pct < 10;
-                          const pillClass = isSlight ? "slight" : shortage > 0 ? "shortage" : "adequate";
-                          const pillText = isSlight ? "Slight" : shortage > 0 ? "Shortage" : "Adequate";
-                          return (
-                            <tr key={zone.id}>
-                              <td><strong>{zone.name}</strong> <span style={{ color: "var(--color-text-secondary)", fontSize: "12px" }}>({zone.displayName})</span></td>
-                              <td className="text-right">{JalsetuMath.formatNumber(zone.predictedDemand)}</td>
-                              <td className="text-right">{JalsetuMath.formatNumber(zone.availableSupply)}</td>
-                              <td className="text-right" style={shortage > 0 ? { color: "var(--color-value-negative)", fontWeight: 700 } : {}}>
-                                {shortage > 0 ? JalsetuMath.formatNumber(shortage) : "0"}
-                              </td>
-                              <td className="text-right" style={{ color: "var(--color-text-secondary)" }}>
-                                {pct > 0 ? `${pct.toFixed(1)}%` : "0%"}
-                              </td>
-                              <td className="text-center">
-                                <span className={`status-pill ${pillClass}`}>{pillText}</span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="info-note-banner">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-                  </svg>
-                  <div>
-                    <strong>Total Estimated Municipal Shortage: {JalsetuMath.formatNumber(totalShortage)} L</strong>
-                    <div style={{ fontSize: "12px", opacity: 0.9 }}>
-                      (Deficit calculation: 2 zones in shortage, 1 zone with surplus capacity ready for reallocation)
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* VIEW 5: REDISTRIBUTION PLAN */}
-          {activeView === "redistribution" && (
-            <section className="page-view active" aria-labelledby="redist-page-title">
-              <div className="card">
-                <div className="card-header">
-                  <div>
-                    <h1 id="redist-page-title" className="card-title" style={{ fontSize: "22px", marginBottom: "4px" }}>Recommended Water Redistribution</h1>
-                    <p className="card-subtitle">Based on predicted demand, current supply and shortage risk.</p>
-                  </div>
-                  <button className="btn btn-secondary btn-sm" onClick={exportCsv}>Export Plan (CSV)</button>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)", marginBottom: "var(--space-6)" }}>
-                  <div style={{ background: "#E8F3FE", border: "1px solid #C8E1FA", borderRadius: "var(--radius-md)", padding: "var(--space-4)" }}>
-                    <div style={{ fontSize: "13px", color: "#0553A0", fontWeight: 600, marginBottom: "4px" }}>💧 Available for Redistribution</div>
-                    <div style={{ fontSize: "26px", fontWeight: 700, color: "#0867C4" }}>150,000 L</div>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: "18px", fontWeight: 700, color: "var(--cmd-hydro-blue)" }}>
+                      {JalsetuMath.formatNumber(totalAvailableSupply)} Litres
+                    </span>
                   </div>
 
-                  <div style={{ background: "#FDF4F7", border: "1px solid #F9CFDC", borderRadius: "var(--radius-md)", padding: "var(--space-4)" }}>
-                    <div style={{ fontSize: "13px", color: "#9B1C2C", fontWeight: 600, marginBottom: "4px" }}>🚨 Priority Zones</div>
-                    <div style={{ fontSize: "13px", color: "var(--color-text-primary)", lineHeight: 1.4 }}>
-                      <div>1. <strong>Zone B</strong> (Highest risk)</div>
-                      <div>2. <strong>Zone C</strong> (Medium risk)</div>
-                      <div>3. <strong>Zone D</strong> (Low risk)</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Interactive Slider */}
-                <div className="slider-control-box">
-                  <div className="slider-header">
-                    <label htmlFor="redist-slider" style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-text-primary)" }}>
-                      What-If Scenario: Adjust Total Available City Supply ({JalsetuMath.formatNumber(totalAvailableSupply)} L)
-                    </label>
-                    <span style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>(Live recalculation)</span>
-                  </div>
                   <input
                     type="range"
-                    id="redist-slider"
-                    className="range-slider"
+                    className="hydraulic-slider"
                     min="1000000"
                     max="3000000"
                     step="50000"
                     value={totalAvailableSupply}
                     onChange={(e) => setTotalAvailableSupply(parseInt(e.target.value, 10))}
                   />
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--color-text-secondary)", marginTop: "4px" }}>
-                    <span>Deficit (1,000,000 L)</span>
-                    <span>Baseline (1,620,000 L)</span>
-                    <span>Surplus (3,000,000 L)</span>
+
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "var(--cmd-text-subtle)", marginTop: "6px", fontFamily: "var(--font-mono)" }}>
+                    <span>CRITICAL DEFICIT (1.0M L)</span>
+                    <span>BASELINE OPERATING (1.62M L)</span>
+                    <span>SURPLUS CAPACITY (3.0M L)</span>
                   </div>
                 </div>
 
-                {/* Table */}
-                <div className="table-responsive" style={{ marginBottom: "var(--space-4)" }}>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Zone</th>
-                        <th className="text-right">Current Supply (L)</th>
-                        <th className="text-right">Recommended Allocation (L)</th>
-                        <th className="text-right">New Supply (L)</th>
-                        <th className="text-right">Remaining Shortage (L)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {redistributionPlan.map((zone) => {
-                        const transferSign = zone.netTransfer > 0 ? `+${JalsetuMath.formatNumber(zone.netTransfer)}` : (zone.netTransfer < 0 ? JalsetuMath.formatNumber(zone.netTransfer) : "+0");
-                        const transferStyle = zone.netTransfer > 0 ? { color: "var(--color-value-positive)", fontWeight: 600 } : (zone.netTransfer < 0 ? { color: "var(--color-value-negative)" } : { color: "var(--color-text-secondary)" });
-                        return (
-                          <tr key={zone.id}>
-                            <td><strong>{zone.name}</strong></td>
-                            <td className="text-right">{JalsetuMath.formatNumber(zone.availableSupply)}</td>
-                            <td className="text-right" style={transferStyle}>{transferSign}</td>
-                            <td className="text-right"><strong>{JalsetuMath.formatNumber(zone.recommendedAllocation)}</strong></td>
-                            <td className="text-right" style={zone.remainingShortage > 0 ? { color: "var(--color-value-negative)", fontWeight: 600 } : {}}>
-                              {zone.remainingShortage > 0 ? JalsetuMath.formatNumber(zone.remainingShortage) : "0"}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                {/* Redistribution Results Table */}
+                <table className="tactical-table">
+                  <thead>
+                    <tr>
+                      <th>Zone</th>
+                      <th style={{ textAlign: "right" }}>Current Supply</th>
+                      <th style={{ textAlign: "right" }}>Recommended Flow Transfer</th>
+                      <th style={{ textAlign: "right" }}>Rebalanced Supply</th>
+                      <th style={{ textAlign: "right" }}>Remaining Shortage</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {redistributionPlan.map((zone) => {
+                      const isTransferIn = zone.netTransfer > 0;
+                      const isTransferOut = zone.netTransfer < 0;
 
-                <div className="info-note-banner teal">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-                  </svg>
-                  <div>
-                    <strong>Note:</strong> Redistribution is subject to pipeline capacity and infrastructure constraints.
-                  </div>
-                </div>
+                      return (
+                        <tr key={zone.id}>
+                          <td><strong>{zone.name}</strong></td>
+                          <td className="num-cell">{JalsetuMath.formatNumber(zone.availableSupply)} L</td>
+                          <td className="num-cell" style={{ color: isTransferIn ? "var(--cmd-adequate-green)" : isTransferOut ? "var(--cmd-critical-red)" : "inherit" }}>
+                            {isTransferIn ? `+${JalsetuMath.formatNumber(zone.netTransfer)} L (RECEIVE)` : isTransferOut ? `${JalsetuMath.formatNumber(zone.netTransfer)} L (DONATE)` : "0 L"}
+                          </td>
+                          <td className="num-cell"><strong>{JalsetuMath.formatNumber(zone.recommendedAllocation)} L</strong></td>
+                          <td className="num-cell" style={{ color: zone.remainingShortage > 0 ? "var(--cmd-critical-red)" : "var(--cmd-adequate-green)" }}>
+                            {zone.remainingShortage > 0 ? `-${JalsetuMath.formatNumber(zone.remainingShortage)} L` : "0 L"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            </section>
+            </div>
           )}
 
-          {/* VIEW 6: MAP VIEW & REDISTRIBUTION SIMULATION */}
+          {/* VIEW 6: GIS SPATIAL NETWORK MAP */}
           {activeView === "map" && (
-            <section className="page-view active" aria-labelledby="map-page-title">
-              <div className="card">
-                <div className="card-header">
-                  <div>
-                    <h1 id="map-page-title" className="card-title" style={{ fontSize: "22px", marginBottom: "4px" }}>City Water Risk & Infrastructure Map</h1>
-                    <p className="card-subtitle">Interactive Leaflet GIS with real-time zone metrics and simulated pipe redistribution routes.</p>
-                  </div>
-                  <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-                    <button
-                      className={`btn ${simulationActive ? "btn-secondary" : "btn-primary"}`}
-                      onClick={() => setSimulationActive(!simulationActive)}
-                    >
-                      {simulationActive ? "Hide Transfer Routes" : "⚡ Simulate Redistribution Routes"}
-                    </button>
-                    <div style={{ display: "flex", gap: "10px", fontSize: "12px", alignItems: "center" }}>
-                      <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#D9363E" }}></span> High Risk</span>
-                      <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#FFA94D" }}></span> Medium Risk</span>
-                      <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><span style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#2B8A3E" }}></span> Low Risk</span>
-                    </div>
-                  </div>
+            <div className="cmd-table-container">
+              <div className="cmd-table-header">
+                <div>
+                  <div className="cmd-table-title">City Spatial GIS & Hydraulic Conduit Network</div>
+                  <div className="cmd-table-subtitle">Real-time zone risks, proposed redistribution transfer vectors, and citizen wastage pins</div>
                 </div>
 
-                <div className="map-view-grid">
-                  <div style={{ height: "420px", position: "relative" }}>
+                <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                  <button
+                    className={`btn-cmd ${simulationActive ? "btn-cmd-primary" : "btn-cmd-secondary"} btn-cmd-sm`}
+                    onClick={() => setSimulationActive(!simulationActive)}
+                  >
+                    <span>{simulationActive ? "Hide Pipeline Conduits" : "⚡ Simulate Transfer Conduits"}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ padding: "var(--space-5)" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "var(--space-4)" }}>
+                  <div style={{ height: "460px", position: "relative" }}>
                     <InteractiveRiskMap
                       zones={zones}
                       reports={reports}
@@ -835,97 +929,59 @@ export default function JalsetuApp() {
                     />
                   </div>
 
-                  {/* Zone Inspection Panel */}
-                  <div style={{ background: "var(--color-surface-muted)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "var(--space-4)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  {/* Diagnostic HUD */}
+                  <div style={{ background: "var(--cmd-surface-subtle)", border: "1px solid var(--cmd-border)", borderRadius: "var(--radius-md)", padding: "16px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                     <div>
-                      <h2 style={{ fontSize: "15px", fontWeight: 700, marginBottom: "var(--space-2)", color: "var(--color-text-primary)" }}>
-                        {selectedMapZone ? `${selectedMapZone.name} Overview` : "Select a Zone"}
-                      </h2>
+                      <span className="badge-tag" style={{ background: "#E2E8F0", color: "#334155", marginBottom: "8px" }}>
+                        DIAGNOSTIC HUD
+                      </span>
+                      <h3 style={{ fontSize: "16px", fontWeight: 700, color: "var(--cmd-text-heading)", margin: "4px 0" }}>
+                        {selectedMapZone ? `${selectedMapZone.name} Diagnostics` : "Select a Zone"}
+                      </h3>
                       {selectedMapZone && (
-                        <div style={{ fontSize: "13px", lineHeight: "1.6", color: "var(--color-text-primary)" }}>
-                          <div style={{ color: "var(--color-text-secondary)", fontSize: "12px", marginBottom: "6px" }}>{selectedMapZone.displayName}</div>
-                          <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid var(--color-border)" }}>
-                            <span>Demand:</span> <strong>{JalsetuMath.formatNumber(selectedMapZone.predictedDemand)} L</strong>
+                        <div style={{ fontSize: "12px", color: "var(--cmd-text-muted)", marginBottom: "12px" }}>
+                          {selectedMapZone.displayName} · Lat: {selectedMapZone.coordinates[0]}, Lon: {selectedMapZone.coordinates[1]}
+                        </div>
+                      )}
+
+                      {selectedMapZone && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--cmd-border-light)", paddingBottom: "4px" }}>
+                            <span>Demand:</span> <strong className="num-cell">{JalsetuMath.formatNumber(selectedMapZone.predictedDemand)} L</strong>
                           </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid var(--color-border)" }}>
-                            <span>Supply:</span> <strong>{JalsetuMath.formatNumber(selectedMapZone.availableSupply)} L</strong>
+                          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--cmd-border-light)", paddingBottom: "4px" }}>
+                            <span>Supply:</span> <strong className="num-cell">{JalsetuMath.formatNumber(selectedMapZone.availableSupply)} L</strong>
                           </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid var(--color-border)" }}>
-                            <span>Shortage:</span> <strong style={{ color: "var(--color-value-negative)" }}>{JalsetuMath.formatNumber(JalsetuMath.calculateShortage(selectedMapZone.predictedDemand, selectedMapZone.availableSupply))} L</strong>
+                          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--cmd-border-light)", paddingBottom: "4px" }}>
+                            <span>Shortage:</span> <strong className="num-cell" style={{ color: "var(--cmd-critical-red)" }}>
+                              {JalsetuMath.formatNumber(JalsetuMath.calculateShortage(selectedMapZone.predictedDemand, selectedMapZone.availableSupply))} L
+                            </strong>
                           </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
-                            <span>Risk Status:</span> <strong style={{ color: JalsetuMath.classifyRisk(selectedMapZone.predictedDemand, selectedMapZone.availableSupply) === "High" ? "#D9363E" : "#2B8A3E" }}>{JalsetuMath.classifyRisk(selectedMapZone.predictedDemand, selectedMapZone.availableSupply)} Risk</strong>
+                          <div style={{ display: "flex", justifyContent: "space-between" }}>
+                            <span>Risk Tier:</span> <strong>{JalsetuMath.classifyRisk(selectedMapZone.predictedDemand, selectedMapZone.availableSupply)} Risk</strong>
                           </div>
                         </div>
                       )}
 
-                      <hr style={{ border: 0, borderTop: "1px solid var(--color-border)", margin: "12px 0" }} />
+                      <hr style={{ border: 0, borderTop: "1px solid var(--cmd-border)", margin: "14px 0" }} />
 
-                      <h3 style={{ fontSize: "14px", fontWeight: 700, marginBottom: "var(--space-2)", color: "var(--color-text-primary)" }}>Key Spatial Insights</h3>
-                      <div className="insight-item">
-                        <span className="insight-icon">⚠️</span>
-                        <div><strong>Zone B</strong> has the highest shortage risk (34% deficit).</div>
-                      </div>
-                      <div className="insight-item">
-                        <span className="insight-icon">💧</span>
-                        <div><strong>Zone A</strong> has surplus supply (100,000 L).</div>
-                      </div>
-                      <div className="insight-item">
-                        <span className="insight-icon">🔄</span>
-                        <div>Optimal transfer: <strong>A → B (100,000 L)</strong></div>
-                      </div>
-                      <div className="insight-item">
-                        <span className="insight-icon">📍</span>
-                        <div>
-                          <strong>{reports.length} Citizen Reports</strong> logged with MCD (Active burst pipe in Zone B).
-                        </div>
+                      <div style={{ fontSize: "12px" }}>
+                        <strong>Active Incident Pin:</strong> 1 Burst Pipe reported in Zone B near Majiwada Junction flyover under MCD investigation.
                       </div>
                     </div>
 
                     {simulationActive && (
-                      <div style={{ background: "#E8F3FE", padding: "8px 12px", borderRadius: "var(--radius-sm)", border: "1px solid #C8E1FA", fontSize: "12px", color: "#0867C4", marginTop: "12px" }}>
-                        ✓ <strong>Simulation Active:</strong> 2 redistribution pipelines routed on map.
+                      <div style={{ background: "#E0F2FE", border: "1px solid #BAE6FD", borderRadius: "var(--radius-sm)", padding: "10px", fontSize: "11px", color: "#0369A1" }}>
+                        ✓ Transfer bypass conduit active: Zone A (Surplus) → Zone B (Deficit). Transfer capacity: 100,000 L.
                       </div>
                     )}
                   </div>
                 </div>
-
-                {/* Bottom Trend & Weather Grid */}
-                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "var(--space-6)", marginTop: "var(--space-4)" }}>
-                  <div>
-                    <h2 style={{ fontSize: "15px", fontWeight: 700, marginBottom: "var(--space-3)" }}>
-                      Water Consumption Trend ({selectedMapZone?.name || "Zone B"})
-                    </h2>
-                    <div style={{ background: "#FFFFFF", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "16px" }}>
-                      <ForecastSplitChart
-                        labels={activeLabels}
-                        forecastStartIndex={forecastStartIndex}
-                        historicalData={activeSeries.historical}
-                        forecastData={activeSeries.forecast}
-                        zoneName={selectedMapZone?.name || "Zone B"}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <h2 style={{ fontSize: "15px", fontWeight: 700, marginBottom: "var(--space-3)" }}>Weather Covariates</h2>
-                    <div className="weather-box">
-                      <div>
-                        <div className="weather-temp">32°C</div>
-                        <div className="weather-desc">Mostly Sunny</div>
-                      </div>
-                      <div style={{ fontSize: "36px" }} aria-hidden="true">☀️</div>
-                    </div>
-                    <p style={{ fontSize: "12px", color: "var(--color-text-secondary)", marginTop: "8px" }}>
-                      Higher demand predicted in next 24 hours (+8.4% above seasonal median) driven by heat index elevation.
-                    </p>
-                  </div>
-                </div>
               </div>
-            </section>
+            </div>
           )}
 
-          {/* VIEW 6.5: CITIZEN WATER WASTAGE REPORTING */}
+          {/* VIEW 7: CITIZEN WATER WASTAGE REPORTING DESK */}
           {activeView === "report" && (
             <ReportWastageView
               reports={reports}
@@ -936,175 +992,132 @@ export default function JalsetuApp() {
             />
           )}
 
-          {/* VIEW 7: ABOUT */}
+          {/* VIEW 8: ABOUT & OPERATIONAL SPECIFICATION */}
           {activeView === "about" && (
-            <section className="page-view active" aria-labelledby="about-page-title">
-              <div className="card">
-                <h1 id="about-page-title" className="card-title" style={{ fontSize: "22px", marginBottom: "4px" }}>About Jalsetu (WDMS)</h1>
-                <p className="card-subtitle" style={{ marginBottom: "var(--space-5)" }}>
-                  Intelligent Water Demand Management System for Municipal Operations
+            <div className="cmd-table-container">
+              <div className="cmd-table-header">
+                <div>
+                  <div className="cmd-table-title">Jalsetu WDMS · Municipal Operations & Technical Architecture</div>
+                  <div className="cmd-table-subtitle">Core algorithmic specifications, LightGBM model metrics, and civil crisis protocols</div>
+                </div>
+              </div>
+
+              <div style={{ padding: "var(--space-6)", lineHeight: "1.6" }}>
+                <h3 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px", color: "var(--cmd-text-heading)" }}>
+                  1. System Mission & Civic Purpose
+                </h3>
+                <p style={{ marginBottom: "16px", color: "var(--cmd-text-body)" }}>
+                  Jalsetu is designed to eliminate systemic urban water shortages by unifying historical sensor telemetry, predictive LightGBM demand forecasting, real-time MAD anomaly detection, and progressive water-filling supply redistribution. It bridges municipal operations officers with citizen boots-on-the-ground reporting.
                 </p>
 
-                <div style={{ lineHeight: 1.6, color: "var(--color-text-primary)" }}>
-                  <h2 style={{ fontSize: "16px", fontWeight: 700, marginTop: "16px", marginBottom: "8px" }}>1. Purpose & Core Objective</h2>
-                  <p>
-                    Jalsetu bridges historical water consumption patterns and forward-looking operational decisions. Built specifically for water operations officers and municipal planners, it transforms raw sensor telemetry and meter datasets into actionable redistributions.
-                  </p>
+                <h3 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px", color: "var(--cmd-text-heading)" }}>
+                  2. Core Algorithmic Framework
+                </h3>
+                <ul style={{ paddingLeft: "20px", marginBottom: "16px" }}>
+                  <li><strong>Demand Forecast:</strong> Multi-step LightGBM regressor utilizing 1h, 24h, and 168h lag features with seasonal-naive benchmark comparison.</li>
+                  <li><strong>Anomaly & Surge Radar:</strong> Robust z-scores computed via Median Absolute Deviation (MAD), distinguishing between sustained draw and sudden pipe ruptures.</li>
+                  <li><strong>Shortage Estimation:</strong> Formulated as <code>shortage = max(0, predicted_demand − available_supply)</code>, categorizing zones into Low, Medium, and High risk tiers.</li>
+                  <li><strong>Redistribution Optimization:</strong> Weighted progressive water-filling that respects pipeline constraints, caps each zone at expected demand, and prioritizes critical risk regions.</li>
+                </ul>
 
-                  <h2 style={{ fontSize: "16px", fontWeight: 700, marginTop: "20px", marginBottom: "8px" }}>2. Core Methodology & Algorithms</h2>
-                  <ul style={{ paddingLeft: "20px", marginBottom: "16px" }}>
-                    <li><strong>Demand Forecasting:</strong> LightGBM global regressor using lag profiles (1h, 24h, 168h), cyclical time features, and weather covariates to beat seasonal-naive baselines.</li>
-                    <li><strong>Anomaly Scoring:</strong> Residual-based robust z-score scoring using Median Absolute Deviation (MAD) with dedicated surge thresholding for rapid pipe bursts or unauthorized draws.</li>
-                    <li><strong>Shortage Estimation:</strong> Formulated as <code>shortage = max(0, predicted_demand - available_supply)</code>, categorizing zones into Low, Medium, and High risk.</li>
-                    <li><strong>Supply Redistribution:</strong> Weighted progressive water-filling that respects capacity constraints, caps each zone at its expected demand, and prioritizes critical risk regions.</li>
-                  </ul>
-                </div>
+                <h3 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px", color: "var(--cmd-text-heading)" }}>
+                  3. Authority & Citizen Engagement
+                </h3>
+                <p style={{ color: "var(--cmd-text-body)" }}>
+                  Wastage reports submitted by citizens are received directly by the Municipal Corporation (MCD) Field Triage Division, providing immediate ground-truth verification for sensor-detected pipe surges.
+                </p>
               </div>
-            </section>
-          )}
-
-          {/* VIEW 8: OPERATOR PROFILE */}
-          {activeView === "profile" && (
-            <section className="page-view active" aria-labelledby="profile-page-title">
-              <div className="card">
-                <div className="card-header">
-                  <div>
-                    <h1 id="profile-page-title" className="card-title" style={{ fontSize: "22px", marginBottom: "4px" }}>Operator Profile & Credentials</h1>
-                    <p className="card-subtitle">Manage municipal jurisdiction, operational role and system authorizations.</p>
-                  </div>
-                  <button className="btn btn-secondary btn-sm" onClick={() => setIsLoginModalOpen(true)}>Switch User / Login</button>
-                </div>
-
-                <div className="profile-grid">
-                  <div style={{ background: "var(--color-surface-muted)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "var(--space-6)", textAlign: "center" }}>
-                    <div className="profile-avatar-box">{currentUser.avatarInitials}</div>
-                    <h2 style={{ fontSize: "18px", fontWeight: 700, color: "var(--color-text-primary)", marginBottom: "2px" }}>{currentUser.name}</h2>
-                    <div style={{ fontSize: "13px", color: "var(--color-primary)", fontWeight: 600, marginBottom: "var(--space-4)" }}>{currentUser.role}</div>
-                    
-                    <div style={{ textAlign: "left", borderTop: "1px solid var(--color-border)", paddingTop: "var(--space-4)" }}>
-                      <div className="profile-meta-item">
-                        <span className="profile-meta-label">Employee ID</span>
-                        <span className="profile-meta-val">{currentUser.id}</span>
-                      </div>
-                      <div className="profile-meta-item">
-                        <span className="profile-meta-label">Email</span>
-                        <span className="profile-meta-val" style={{ fontSize: "12px" }}>{currentUser.email}</span>
-                      </div>
-                      <div className="profile-meta-item">
-                        <span className="profile-meta-label">Status</span>
-                        <span className="status-pill success">Active Duty</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h2 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "var(--space-4)" }}>Administrative Responsibilities</h2>
-                    <div style={{ background: "#FFFFFF", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "var(--space-5)", marginBottom: "var(--space-5)" }}>
-                      <div className="profile-meta-item">
-                        <span className="profile-meta-label">Department</span>
-                        <span className="profile-meta-val">{currentUser.department}</span>
-                      </div>
-                      <div className="profile-meta-item">
-                        <span className="profile-meta-label">Assigned Jurisdiction</span>
-                        <span className="profile-meta-val">{currentUser.jurisdiction}</span>
-                      </div>
-                      <div className="profile-meta-item">
-                        <span className="profile-meta-label">Authorization Clearance</span>
-                        <span className="profile-meta-val" style={{ color: "var(--color-primary)" }}>{currentUser.accessLevel}</span>
-                      </div>
-                      <div className="profile-meta-item">
-                        <span className="profile-meta-label">Session Authenticated</span>
-                        <span className="profile-meta-val">{currentUser.lastLogin}</span>
-                      </div>
-                    </div>
-
-                    <h2 style={{ fontSize: "16px", fontWeight: 700, marginBottom: "var(--space-3)" }}>Operational Permissions</h2>
-                    <ul style={{ paddingLeft: "20px", fontSize: "13px", color: "var(--color-text-secondary)", lineHeight: 1.8 }}>
-                      <li>✔️ <strong>Demand Redistribution Execution:</strong> Authorized to execute inter-zone pipeline allocations.</li>
-                      <li>✔️ <strong>Surge & Leakage Incident Override:</strong> Authorized to acknowledge critical anomaly alarms.</li>
-                      <li>✔️ <strong>What-If Scenario Simulation:</strong> Authorized to adjust municipal emergency supply baselines.</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </section>
+            </div>
           )}
 
         </div>
       </main>
 
-      {/* LOGIN MODAL */}
+      {/* FOOTER */}
+      <footer className="cmd-footer">
+        <div className="cmd-container cmd-footer-inner">
+          <div>
+            <strong>JALSETU WDMS</strong> · Municipal Water Demand Management System · Thane Urban Command Div-04
+          </div>
+          <div>
+            Authority: Municipal Corporation of Delhi (MCD) / Thane Water Board · 100% Deterministic Algorithms Verified
+          </div>
+        </div>
+      </footer>
+
+      {/* USER / ROLE SWITCH MODAL */}
       {isLoginModalOpen && (
-        <div className="modal-overlay active" role="dialog" aria-modal="true" onClick={() => setIsLoginModalOpen(false)}>
-          <div className="auth-card" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close-btn" onClick={() => setIsLoginModalOpen(false)} aria-label="Close">✕</button>
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(5, 19, 41, 0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}
+          onClick={() => setIsLoginModalOpen(false)}
+        >
+          <div
+            style={{ background: "#FFFFFF", borderRadius: "var(--radius-md)", border: "1px solid var(--cmd-border)", padding: "var(--space-6)", width: "100%", maxWidth: "440px", boxShadow: "var(--shadow-elevated)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-4)" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: 700, color: "var(--cmd-text-heading)", margin: 0 }}>
+                Municipal Officer Credentials
+              </h3>
+              <button
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "var(--cmd-text-muted)" }}
+                onClick={() => setIsLoginModalOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
 
-            <div className="auth-header">
-              <div className="auth-logo-badge" aria-hidden="true">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
-                </svg>
+            <form onSubmit={handleRoleSwitch}>
+              <div style={{ marginBottom: "var(--space-4)" }}>
+                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--cmd-text-muted)", display: "block", marginBottom: "4px" }}>
+                  Select Preset Role:
+                </label>
+                <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                  <button
+                    type="button"
+                    className={`btn-cmd ${selectedLoginRole === "operator" ? "btn-cmd-primary" : "btn-cmd-secondary"}`}
+                    style={{ flex: 1 }}
+                    onClick={() => { setSelectedLoginRole("operator"); setLoginEmail(ROLE_PRESETS.operator.email); }}
+                  >
+                    Chief Operator (SS)
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn-cmd ${selectedLoginRole === "analyst" ? "btn-cmd-primary" : "btn-cmd-secondary"}`}
+                    style={{ flex: 1 }}
+                    onClick={() => { setSelectedLoginRole("analyst"); setLoginEmail(ROLE_PRESETS.analyst.email); }}
+                  >
+                    Water Analyst (AP)
+                  </button>
+                </div>
               </div>
-              <h2 className="auth-title">Jalsetu Sign In</h2>
-              <p className="auth-subtitle">Municipal Smart City Water Management Portal</p>
-            </div>
 
-            <div className="role-switcher-grid">
-              <button
-                type="button"
-                className={`role-tab-btn ${selectedLoginRole === "operator" ? "active" : ""}`}
-                onClick={() => handleRoleTabChange("operator")}
-              >
-                Operations Officer
-              </button>
-              <button
-                type="button"
-                className={`role-tab-btn ${selectedLoginRole === "analyst" ? "active" : ""}`}
-                onClick={() => handleRoleTabChange("analyst")}
-              >
-                Water Analyst
-              </button>
-            </div>
-
-            <form onSubmit={handleLoginSubmit}>
-              <div className="form-group" style={{ marginBottom: "var(--space-4)" }}>
-                <label className="form-label">Official Email</label>
+              <div style={{ marginBottom: "var(--space-5)" }}>
+                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--cmd-text-muted)", display: "block", marginBottom: "4px" }}>
+                  Officer Email:
+                </label>
                 <input
                   type="email"
-                  className="form-input"
+                  className="cmd-input"
+                  style={{ width: "100%" }}
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   required
                 />
               </div>
 
-              <div className="form-group" style={{ marginBottom: "var(--space-5)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <label className="form-label">Password / Security PIN</label>
-                  <span style={{ fontSize: "12px", color: "var(--color-primary)", cursor: "pointer" }} onClick={() => alert("Demo credentials pre-filled.")}>Forgot PIN?</span>
-                </div>
-                <input type="password" className="form-input" defaultValue="••••••••••••" required />
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)" }}>
+                <button type="button" className="btn-cmd btn-cmd-secondary" onClick={() => setIsLoginModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-cmd btn-cmd-primary">
+                  Switch Operational Role
+                </button>
               </div>
-
-              <button type="submit" className="btn btn-primary" style={{ width: "100%", height: "42px" }}>
-                Authenticate & Access Dashboard
-              </button>
             </form>
           </div>
         </div>
       )}
-
-      {/* Global Footer */}
-      <footer className="footer" role="contentinfo">
-        <div className="container footer-inner">
-          <div>
-            <strong>Jalsetu</strong> — Water Demand Management System &bull; Municipal Operations Dashboard
-          </div>
-          <div>
-            Next.js App Router &bull; Smart City Hackathon 2026
-          </div>
-        </div>
-      </footer>
-    </>
+    </div>
   );
 }
