@@ -9,11 +9,6 @@
 
 Related: [PRD.md](PRD.md) · [TECH_SPEC.md](TECH_SPEC.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [TASKS.md](TASKS.md)
 
-> **Conflict to resolve:** the mockup's build guide says *HTML, CSS, JavaScript and Flask*, with a custom
-> navigation bar, hero banner and card layouts. [TECH_SPEC.md](TECH_SPEC.md) currently proposes **Streamlit**
-> (decision D-1). This design system is written stack-neutral (CSS custom properties). It is
-> achievable in Streamlit only with heavy custom CSS. Decide D-1 before UI work starts.
-
 ## Contents
 
 1. [Principles](#1-principles)
@@ -283,9 +278,7 @@ Define tokens once as CSS custom properties; reuse them for charts.
 ```
 
 Naming: dotted names in this document (`color.risk`-style) map to kebab-case CSS variables
-(`color.text.primary` → `--color-text-primary`). If Streamlit is kept, apply the same variables with
-`st.markdown` CSS injection and `.streamlit/config.toml` for base theme colors. Final mapping depends on
-decision D-1.
+(`color.text.primary` → `--color-text-primary`). Put the CSS variables in static/css/tokens.css and load it in the base template.
 
 ## 16. Do and don't
 
@@ -307,6 +300,6 @@ decision D-1.
 | 3 | Actual vs. predicted uses blue vs. red; red clashes with risk red | Adjusted (see §9) |
 | 4 | "Select City" (Thane) on Home implies multi-city support, which is not in the PRD | Open: confirm or drop |
 | 5 | Mockup numbers are illustrative and inconsistent between pages (e.g. shortage 230,000 L on Home vs. 450,000 L on Shortage page) | Do not copy as data |
-| 6 | Mockup targets Flask, HTML, CSS, JS; docs propose Streamlit | Open: decision D-1 |
+| 6 | Mockup targets Flask, HTML, CSS, JS | Resolved: Flask |
 | 7 | Chart legends and axis labels in the mockup are small | Minimum 12 px in implementation |
 | 8 | Profile icon in nav | Unconfirmed; remove if no accounts |

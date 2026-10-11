@@ -24,8 +24,8 @@ Related: [ARCHITECTURE.md](ARCHITECTURE.md) · [AGENTS.md](AGENTS.md) · [TASKS.
 
 A single Python application. A pipeline turns raw consumption data into
 features, forecasts, anomaly flags, shortage estimates and an allocation plan.
-A Streamlit UI presents the results. There is no separate backend API (see
-decision D-1).
+A Flask app serves the pages (Jinja templates, HTML, CSS, vanilla JS) and a small JSON API
+that the pages call. Business logic stays in plain Python modules (decision D-1: Flask).
 
 ## 2. Stack and rationale
 
@@ -36,8 +36,9 @@ decision D-1).
 | Forecasting | LightGBM (global model) + seasonal-naive baseline | Handles many zones in one model; fast to train; baseline gives an honest benchmark | Proposed |
 | Anomaly detection | Residual-based robust z-score (MAD) | Explainable, works without labels | Proposed |
 | Allocation | Pure-Python weighted water-filling | Deterministic, testable, no solver dependency | Proposed |
-| UI | Streamlit | Fastest route to an interactive dashboard | Proposed |
-| Charts and map | Plotly (incl. `scatter_mapbox` with `open-street-map` style) | Interactive, no map API token | Proposed |
+| Web framework | Flask | Matches the UI mockup (HTML/CSS/JS); handles uploads and an admin view | Proposed |
+| Charts | Plotly.js (CDN or vendored) | Interactive charts in the browser | Proposed |
+| Map | Leaflet + OpenStreetMap tiles | No API key needed | Proposed |
 | Tests | pytest | Standard | Proposed |
 | Lint/format | ruff | Single fast tool | Proposed |
 
@@ -144,8 +145,16 @@ output is deterministic for equal inputs.
 
 ## 6. Internal interfaces
 
-No HTTP API is planned (D-1). Modules expose plain functions. Signatures are
-indicative and may change at implementation time.
+HTTP endpoints (Proposed; paths and parameters not final):
+  GET   /api/overview?time=&supply=       zone table: demand, supply, shortage, risk, flags
+  GET   /api/forecast?zone=&from=&to=     predicted and historical series
+  GET   /api/anomalies?time=              abnormal and surge flags
+  GET   /api/allocation?supply=           redistribution plan
+  POST  /api/reports                      submit a photo report (multipart)
+  GET   /api/reports                      list reports (passcode required)
+  PATCH /api/reports/<id>                 change status (passcode required)
+
+Modules expose plain functions. Signatures are indicative and may change at implementation time:
 
 ```python
 def load_consumption(path: str) -> pd.DataFrame: ...
@@ -179,7 +188,7 @@ Use Python `logging` with INFO by default. Log data-quality counts and model met
 ## 9. Performance
 
 Targets are in the PRD (NFR-001). Approach: train offline via a script, persist
-the model, cache loaded data and forecasts with Streamlit caching, and keep
+the model, cache loaded data and forecasts in memory (e.g. `functools.lru_cache`), load the model once at startup, and keep
 allocation vectorized. Scale target: tens of zones, a few years of hourly data
 (**Unconfirmed**, dataset dependent).
 
@@ -195,14 +204,13 @@ Quality bar: tests pass and ruff reports no errors before a task is Done (see [A
 
 ## 11. Deployment
 
-Local run is the primary target. Optional: Streamlit Community Cloud or a
-container (TBD). Deployment is not required for the problem statement.
+Local run is the primary target. Optional: container or hosted deployment (TBD). Deployment is not required for the problem statement.
 
 ## 12. Open decisions
 
 | ID | Decision | Options | Status |
 |---|---|---|---|
-| D-1 | Backend API or not | Streamlit only (current proposal) / FastAPI + separate UI | Proposed: Streamlit only |
+| D-1 | App framework | Flask + HTML, CSS, JS | **Decided (proposed by team lead, matches mockup):** Flask |
 | D-2 | Dataset | `dm1718` / Smart Cities city dataset / both | Open |
 | D-3 | Multi-step strategy | Direct vs. recursive | Open |
 | D-4 | Allocation method | Weighted water-filling / linear program | Proposed: water-filling |

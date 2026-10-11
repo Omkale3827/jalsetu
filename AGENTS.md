@@ -10,7 +10,7 @@ Instructions for AI coding agents and contributors. Keep this file short; detail
 ## 1. Project
 
 WDMS forecasts per-zone water demand, flags abnormal consumption, estimates
-shortages and recommends supply redistribution. Python plus Streamlit.
+shortages and recommends supply redistribution. Python plus Flask.
 Product intent: [PRD.md](PRD.md). Work items: [TASKS.md](TASKS.md).
 
 ## 2. Layout (Proposed)
@@ -24,15 +24,15 @@ Product intent: [PRD.md](PRD.md). Work items: [TASKS.md](TASKS.md).
 | `src/wdms/shortage/` | Shortage and risk |
 | `src/wdms/allocation/` | Redistribution |
 | `src/wdms/services/` | Orchestration for the UI, caching |
-| `src/wdms/ui/` | Streamlit pages, components, tokens |
-| `app/streamlit_app.py` | App entry point |
+| `src/wdms/web/` | Flask routes, Jinja templates, static CSS/JS, tokens |
+| `app/main.py` | App entry point (Flask app factory) |
 | `scripts/` | Training and data-prep entry points |
 | `tests/` | pytest tests, small fixtures |
 | `data/`, `models/` | Data and artifacts (large files git-ignored) |
 
 ## 3. Rules
 
-1. **Separation:** UI code has no business logic. Core modules never import Streamlit.
+1. **Separation:** Routes and templates have no business logic. Core modules never import Flask.
 2. **Pure functions** for forecast post-processing, anomaly, shortage, allocation.
 3. **No data leakage:** features use only information available at forecast time. Splits are time-based.
 4. **Determinism:** seeds come from config; same input gives same output.
@@ -52,7 +52,7 @@ Product intent: [PRD.md](PRD.md). Work items: [TASKS.md](TASKS.md).
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python scripts/train.py            # train and save model
-streamlit run app/streamlit_app.py # run the app
+flask --app app.main run --debug   # run the app
 pytest                             # tests
 ruff check . && ruff format --check .
 ```

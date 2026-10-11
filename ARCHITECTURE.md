@@ -49,8 +49,8 @@ flowchart TB
         TRN --> MODEL[(models/)]
         ING --> PROC[(data/processed)]
     end
-    subgraph App[Streamlit app]
-        UI[UI pages] --> SVC[Service layer]
+    subgraph App[Flask app]
+        WEB[Templates, JS, routes] --> SVC[Service layer]
         SVC --> FC[Forecast]
         SVC --> AN[Anomaly and surge]
         SVC --> SH[Shortage]
@@ -58,7 +58,7 @@ flowchart TB
     end
     MODEL --> FC
     PROC --> SVC
-    SUPPLY([User supply input]) --> UI
+    SUPPLY([User supply input]) --> WEB
 ```
 
 ## 4. Components
@@ -74,7 +74,7 @@ flowchart TB
 | Service layer | Orchestrate the above for the UI; own caching | all |
 | UI | Pages: Overview, Zone detail, Map, What-if, Period comparison | PRD-009 to PRD-013 |
 
-Rule: UI code never contains business logic; the service layer never imports Streamlit.
+Rule: routes and templates contain no business logic; the service layer never imports Flask.
 
 ## 5. Data flow
 
@@ -83,16 +83,19 @@ Rule: UI code never contains business logic; the service layer never imports Str
 ```mermaid
 sequenceDiagram
     participant U as User
-    participant UI as UI
+    participant B as Browser
+    participant R as Routes
     participant S as Service layer
     participant M as Model
-    U->>UI: Open dashboard / pick time
-    UI->>S: get_overview(time, supply)
+    U->>B: Open dashboard / pick time
+    B->>R: GET /api/overview?time=&supply=
+    R->>S: get_overview(time, supply)
     S->>M: forecast(history, horizon)
     M-->>S: predicted demand per zone
     S->>S: anomaly flags, shortage, allocation
-    S-->>UI: zone table, series, plan
-    UI-->>U: render
+    S-->>R: zone table, series, plan
+    R-->>B: JSON response
+    B-->>U: render
 ```
 
 **What-if:** a supply change re-runs only shortage and allocation. The forecast is cached.
@@ -123,13 +126,13 @@ No database (decision D-1 in [TECH_SPEC.md](TECH_SPEC.md#12-open-decisions)).
 
 ## 9. Deployment
 
-Current plan: run locally with `streamlit run`. Optional hosted demo or container is TBD.
+Current plan: run locally with `flask --app app.main run`. Optional hosted demo or container is TBD.
 
 ## 10. Decisions and trade-offs
 
 | Decision | Gain | Cost |
 |---|---|---|
-| Streamlit-only | Fast delivery, one language | Less control over UI; no external API |
+| Flask monolith | Matches mockup, supports uploads, one language on the server | More front-end code to write than Streamlit |
 | Global model across zones | Shares signal, fewer models | Zones with very different behavior may need per-zone tuning |
 | Residual-based anomaly detection | Explainable, label-free | Depends on forecast quality |
 | Water-filling allocation | Simple, deterministic | Ignores pipe network constraints |

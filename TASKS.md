@@ -122,18 +122,21 @@ Done requires evidence (see [AGENTS.md](AGENTS.md#6-before-you-finish-a-task)).
   - Acceptance: Interactive Leaflet map with colored risk markers, Key Insights panel, Zone B trend chart, Weather Impact card matching mockup 6.
 - [ ] **TASK-018 — Service layer** (Impl)
   - Priority: High · Status: Planned · Related: all Must · Dependencies: TASK-013, TASK-017
-  - Acceptance: one call returns zone table, series and plan; no Streamlit imports.
+  - Acceptance: one call returns zone table, series and plan; no Flask imports.
+- [ ] **TASK-041 — Flask app skeleton and JSON API routes** (Impl)
+  - Priority: High · Status: Planned · Related: all Must · Dependencies: TASK-018
+  - Acceptance: each /api route above returns JSON for a fixture dataset; route tests pass.
 - [ ] **TASK-019 — Design tokens and theme** (Impl)
   - Priority: Medium · Status: Planned · Related: NFR-003 · Dependencies: TASK-001
   - Acceptance: tokens from [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) in code; contrast of text and status pairs checked and recorded.
 - [ ] **TASK-020 — Overview page** (Impl)
-  - Priority: High · Status: Planned · Related: PRD-004, PRD-006, PRD-007, PRD-008 · Dependencies: TASK-018, TASK-019
+  - Priority: High · Status: Planned · Related: PRD-004, PRD-006, PRD-007, PRD-008 · Dependencies: TASK-018, TASK-019, TASK-041
   - Acceptance: zone table shows demand, supply, shortage, risk, anomaly tags; recommendation list shown; sorted by risk by default.
 - [ ] **TASK-021 — Zone detail charts** (Impl)
-  - Priority: High · Status: Planned · Related: PRD-009 · Dependencies: TASK-020
+  - Priority: High · Status: Planned · Related: PRD-009 · Dependencies: TASK-020, TASK-041
   - Acceptance: trend, forecast and anomaly markers for a selected zone with labeled axes.
 - [ ] **TASK-022 — Show model metrics** (Impl)
-  - Priority: Low · Status: Planned · Related: PRD-014 · Dependencies: TASK-010, TASK-020
+  - Priority: Low · Status: Planned · Related: PRD-014 · Dependencies: TASK-010, TASK-020, TASK-041
   - Acceptance: metrics vs. baseline visible in the UI.
 
 ## M5 Bonus features
@@ -177,15 +180,14 @@ Done requires evidence (see [AGENTS.md](AGENTS.md#6-before-you-finish-a-task)).
 | No supply data in the dataset (A-2) | PRD-006, PRD-008 | TASK-016 |
 | Zone coordinates absent (A-3) | PRD-011 | TASK-006 |
 | Weather source undecided (D-5) | PRD-013 | TASK-007 |
-| Streamlit accessibility limits | NFR-003 | Record exceptions in TASK-019 |
 
 ## Progress summary
 
 | Status | Count |
 |---|---|
-| Done | 0 |
+| Done | 8 |
 | In Progress | 0 |
 | Blocked | 0 |
-| Planned | 31 |
+| Planned | 41 |
 
 Update this table whenever a task status changes.

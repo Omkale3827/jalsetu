@@ -18,7 +18,7 @@ to redistribute water.
 
 ## Technology (Proposed)
 
-Python 3.11+, pandas, LightGBM, Plotly, Streamlit, pytest, ruff.
+Python 3.11+, pandas, LightGBM, Flask, Plotly.js, Leaflet, pytest, ruff.
 Rationale: [TECH_SPEC.md](TECH_SPEC.md#2-stack-and-rationale).
 
 ## Quick start (Proposed, unverified)
@@ -39,7 +39,7 @@ Place files under `data/raw/`.
 
 ```bash
 python scripts/train.py              # prepare data and train the model
-streamlit run app/streamlit_app.py   # start the dashboard
+flask --app app.main run             # start the dashboard (default http://127.0.0.1:5000)
 ```
 
 ## Configuration
@@ -71,8 +71,8 @@ ruff check . && ruff format --check .
 ## Project structure (Proposed)
 
 ```text
-app/        Streamlit entry point
-src/wdms/   data, features, forecast, anomaly, shortage, allocation, services, ui
+app/        Flask entry point
+src/wdms/   data, features, forecast, anomaly, shortage, allocation, services, web
 scripts/    training and data preparation
 tests/      pytest tests
 data/       raw and processed data (large files git-ignored)
