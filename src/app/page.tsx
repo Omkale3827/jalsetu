@@ -55,6 +55,11 @@ export default function JalsetuApp() {
   const [selectedMapZone, setSelectedMapZone] = useState<Zone | null>(INITIAL_ZONES[1]); // Default to Zone B
   const [isLoadingApi, setIsLoadingApi] = useState(true);
 
+  // Anomaly & Shortage Filters/Sorting States
+  const [anomalySeverityFilter, setAnomalySeverityFilter] = useState<string>("all");
+  const [shortageRiskFilter, setShortageRiskFilter] = useState<string>("all");
+  const [shortageSortAsc, setShortageSortAsc] = useState<boolean>(false);
+
   // Fetch real telemetry from backend API route
   useEffect(() => {
     async function loadTelemetry() {
@@ -483,37 +488,63 @@ export default function JalsetuApp() {
           {activeView === "anomalies" && (
             <section className="page-view active" aria-labelledby="anomaly-page-title">
               <div className="card">
-                <h1 id="anomaly-page-title" className="card-title" style={{ fontSize: "22px", marginBottom: "4px" }}>Abnormal Consumption Detection</h1>
-                <p className="card-subtitle" style={{ marginBottom: "var(--space-5)" }}>
-                  The system compares current consumption with historical patterns to detect unusual changes.
-                </p>
+                <div className="card-header">
+                  <div>
+                    <h1 id="anomaly-page-title" className="card-title" style={{ fontSize: "22px", marginBottom: "4px" }}>Abnormal Consumption Detection</h1>
+                    <p className="card-subtitle">
+                      Residual-based robust anomaly scoring (MAD z-score) isolates continuous leaks from sudden pipe surges.
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                    <label className="form-label" style={{ marginBottom: 0 }}>Filter Severity:</label>
+                    <select
+                      className="form-select"
+                      style={{ height: "34px", padding: "0 8px", fontSize: "13px" }}
+                      value={anomalySeverityFilter}
+                      onChange={(e) => setAnomalySeverityFilter(e.target.value)}
+                    >
+                      <option value="all">All Severities</option>
+                      <option value="High Alert">High Alert (Surges)</option>
+                      <option value="High">High (Elevations)</option>
+                      <option value="Normal">Normal</option>
+                    </select>
+                  </div>
+                </div>
 
                 <div className="table-responsive" style={{ marginBottom: "var(--space-6)" }}>
                   <table className="data-table">
                     <thead>
                       <tr>
                         <th>Zone</th>
+                        <th>Classification</th>
                         <th className="text-right">Current Consumption (L)</th>
                         <th className="text-right">Normal Range (L)</th>
+                        <th className="text-right">Deviation</th>
                         <th className="text-center">Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {zones.map((zone) => {
-                        const isAlert = zone.anomaly.severity === "High Alert";
-                        const isHigh = zone.anomaly.severity === "High";
-                        const pillClass = isAlert ? "danger" : isHigh ? "warning" : "success";
-                        return (
-                          <tr key={zone.id}>
-                            <td><strong>{zone.name}</strong></td>
-                            <td className="text-right"><strong>{zone.currentConsumption}</strong> L</td>
-                            <td className="text-right" style={{ color: "var(--color-text-secondary)" }}>{zone.normalRange[0]} – {zone.normalRange[1]}</td>
-                            <td className="text-center">
-                              <span className={`status-pill ${pillClass}`}>{zone.anomaly.severity}</span>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {zones
+                        .filter((z) => anomalySeverityFilter === "all" || z.anomaly.severity === anomalySeverityFilter)
+                        .map((zone) => {
+                          const isAlert = zone.anomaly.severity === "High Alert";
+                          const isHigh = zone.anomaly.severity === "High";
+                          const pillClass = isAlert ? "danger" : isHigh ? "warning" : "success";
+                          return (
+                            <tr key={zone.id}>
+                              <td><strong>{zone.name}</strong> <span style={{ color: "var(--color-text-secondary)", fontSize: "12px" }}>({zone.displayName})</span></td>
+                              <td>{zone.anomaly.type}</td>
+                              <td className="text-right"><strong>{zone.currentConsumption}</strong> L</td>
+                              <td className="text-right" style={{ color: "var(--color-text-secondary)" }}>{zone.normalRange[0]} – {zone.normalRange[1]} L</td>
+                              <td className="text-right" style={zone.anomaly.deviationPct > 0 ? { color: "var(--color-value-negative)", fontWeight: 600 } : {}}>
+                                {zone.anomaly.deviationPct > 0 ? `+${zone.anomaly.deviationPct}%` : `${zone.anomaly.deviationPct}%`}
+                              </td>
+                              <td className="text-center">
+                                <span className={`status-pill ${pillClass}`}>{zone.anomaly.severity}</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>
@@ -522,11 +553,13 @@ export default function JalsetuApp() {
                   <div className="alert-banner-left">
                     <span className="alert-icon" aria-hidden="true">⚠️</span>
                     <div>
-                      <div className="alert-title">Unusual spike detected in Zone B</div>
-                      <div className="alert-subtitle">Current consumption (850 L) is 42% higher than the normal range.</div>
+                      <div className="alert-title">Critical Pipe Surge Identified: Zone B</div>
+                      <div className="alert-subtitle">Current consumption (850 L) is +42% above normal threshold. Residual z-score: 4.8.</div>
                     </div>
                   </div>
-                  <button className="btn btn-primary" onClick={() => setActiveView("map")}>View Details on Map</button>
+                  <button className="btn btn-primary" onClick={() => { setSelectedZoneFilter("zone-b"); setActiveView("prediction"); }}>
+                    Inspect Forecast Profile
+                  </button>
                 </div>
               </div>
             </section>
@@ -536,10 +569,34 @@ export default function JalsetuApp() {
           {activeView === "shortages" && (
             <section className="page-view active" aria-labelledby="shortage-page-title">
               <div className="card">
-                <h1 id="shortage-page-title" className="card-title" style={{ fontSize: "22px", marginBottom: "4px" }}>Shortage Prediction</h1>
-                <p className="card-subtitle" style={{ marginBottom: "var(--space-5)" }}>
-                  Shows the expected demand, available supply and estimated shortage for each zone.
-                </p>
+                <div className="card-header">
+                  <div>
+                    <h1 id="shortage-page-title" className="card-title" style={{ fontSize: "22px", marginBottom: "4px" }}>Shortage Prediction</h1>
+                    <p className="card-subtitle">
+                      Calculates deficit per zone: <code>shortage = max(0, predicted_demand - available_supply)</code>.
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                    <select
+                      className="form-select"
+                      style={{ height: "34px", padding: "0 8px", fontSize: "13px" }}
+                      value={shortageRiskFilter}
+                      onChange={(e) => setShortageRiskFilter(e.target.value)}
+                    >
+                      <option value="all">All Risk Levels</option>
+                      <option value="High">High Risk (Deficit ≥ 20%)</option>
+                      <option value="Medium">Medium Risk (Deficit ≥ 5%)</option>
+                      <option value="Low">Low Risk / Adequate</option>
+                    </select>
+
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setShortageSortAsc(!shortageSortAsc)}
+                    >
+                      Sort by Deficit {shortageSortAsc ? "↑" : "↓"}
+                    </button>
+                  </div>
+                </div>
 
                 <div className="table-responsive" style={{ marginBottom: "var(--space-6)" }}>
                   <table className="data-table">
@@ -549,29 +606,45 @@ export default function JalsetuApp() {
                         <th className="text-right">Predicted Demand (L)</th>
                         <th className="text-right">Available Supply (L)</th>
                         <th className="text-right">Shortage (L)</th>
+                        <th className="text-right">Deficit Ratio</th>
                         <th className="text-center">Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {zones.map((zone) => {
-                        const shortage = JalsetuMath.calculateShortage(zone.predictedDemand, zone.availableSupply);
-                        const isSlight = shortage > 0 && (shortage / zone.predictedDemand) < 0.10;
-                        const pillClass = isSlight ? "slight" : shortage > 0 ? "shortage" : "adequate";
-                        const pillText = isSlight ? "Slight" : shortage > 0 ? "Shortage" : "Adequate";
-                        return (
-                          <tr key={zone.id}>
-                            <td><strong>{zone.name}</strong></td>
-                            <td className="text-right">{JalsetuMath.formatNumber(zone.predictedDemand)}</td>
-                            <td className="text-right">{JalsetuMath.formatNumber(zone.availableSupply)}</td>
-                            <td className="text-right" style={shortage > 0 ? { color: "var(--color-value-negative)", fontWeight: 700 } : {}}>
-                              {shortage > 0 ? JalsetuMath.formatNumber(shortage) : "0"}
-                            </td>
-                            <td className="text-center">
-                              <span className={`status-pill ${pillClass}`}>{pillText}</span>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {zones
+                        .filter((zone) => {
+                          if (shortageRiskFilter === "all") return true;
+                          const risk = JalsetuMath.classifyRisk(zone.predictedDemand, zone.availableSupply);
+                          return risk === shortageRiskFilter;
+                        })
+                        .sort((a, b) => {
+                          const shortA = JalsetuMath.calculateShortage(a.predictedDemand, a.availableSupply);
+                          const shortB = JalsetuMath.calculateShortage(b.predictedDemand, b.availableSupply);
+                          return shortageSortAsc ? shortA - shortB : shortB - shortA;
+                        })
+                        .map((zone) => {
+                          const shortage = JalsetuMath.calculateShortage(zone.predictedDemand, zone.availableSupply);
+                          const pct = (shortage / zone.predictedDemand) * 100;
+                          const isSlight = shortage > 0 && pct < 10;
+                          const pillClass = isSlight ? "slight" : shortage > 0 ? "shortage" : "adequate";
+                          const pillText = isSlight ? "Slight" : shortage > 0 ? "Shortage" : "Adequate";
+                          return (
+                            <tr key={zone.id}>
+                              <td><strong>{zone.name}</strong> <span style={{ color: "var(--color-text-secondary)", fontSize: "12px" }}>({zone.displayName})</span></td>
+                              <td className="text-right">{JalsetuMath.formatNumber(zone.predictedDemand)}</td>
+                              <td className="text-right">{JalsetuMath.formatNumber(zone.availableSupply)}</td>
+                              <td className="text-right" style={shortage > 0 ? { color: "var(--color-value-negative)", fontWeight: 700 } : {}}>
+                                {shortage > 0 ? JalsetuMath.formatNumber(shortage) : "0"}
+                              </td>
+                              <td className="text-right" style={{ color: "var(--color-text-secondary)" }}>
+                                {pct > 0 ? `${pct.toFixed(1)}%` : "0%"}
+                              </td>
+                              <td className="text-center">
+                                <span className={`status-pill ${pillClass}`}>{pillText}</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>
@@ -581,8 +654,10 @@ export default function JalsetuApp() {
                     <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
                   </svg>
                   <div>
-                    <strong>Total Estimated Shortage: {JalsetuMath.formatNumber(totalShortage)} L</strong>
-                    <div style={{ fontSize: "12px", opacity: 0.9 }}>(This is the total amount of water needed to meet predicted demand)</div>
+                    <strong>Total Estimated Municipal Shortage: {JalsetuMath.formatNumber(totalShortage)} L</strong>
+                    <div style={{ fontSize: "12px", opacity: 0.9 }}>
+                      (Deficit calculation: 2 zones in shortage, 1 zone with surplus capacity ready for reallocation)
+                    </div>
                   </div>
                 </div>
               </div>
