@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { Zone } from "@/lib/data";
+import { Zone, CitizenReport } from "@/lib/data";
 import { JalsetuMath } from "@/lib/math";
 
 interface TransferRoute {
@@ -20,6 +20,7 @@ interface TransferRoute {
 
 interface InteractiveRiskMapProps {
   zones: Zone[];
+  reports?: CitizenReport[];
   selectedZoneId?: string;
   onSelectZone: (zone: Zone) => void;
   simulationActive: boolean;
@@ -28,6 +29,7 @@ interface InteractiveRiskMapProps {
 
 export default function InteractiveRiskMap({
   zones,
+  reports = [],
   onSelectZone,
   simulationActive,
   transferRoutes
@@ -35,6 +37,7 @@ export default function InteractiveRiskMap({
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const routeLayersRef = useRef<L.LayerGroup | null>(null);
+  const reportLayersRef = useRef<L.LayerGroup | null>(null);
 
   useEffect(() => {
     if (!mapContainerRef.current) return;
@@ -52,14 +55,15 @@ export default function InteractiveRiskMap({
 
       mapRef.current = map;
       routeLayersRef.current = L.layerGroup().addTo(map);
+      reportLayersRef.current = L.layerGroup().addTo(map);
     }
 
     const map = mapRef.current;
     if (!map) return;
 
-    // Clear previous non-tile layers if needed, or re-render markers
+    // Clear previous non-tile layers
     map.eachLayer((layer) => {
-      if (layer instanceof L.CircleMarker || layer instanceof L.Marker) {
+      if (layer instanceof L.CircleMarker || (layer instanceof L.Marker && !(routeLayersRef.current?.hasLayer(layer)))) {
         map.removeLayer(layer);
       }
     });
@@ -75,6 +79,10 @@ export default function InteractiveRiskMap({
         Low: "#2B8A3E"      // Green
       };
       const markerColor = colorMap[risk] || "#2B8A3E";
+
+      // Find any citizen reports in this zone
+      const zoneReports = reports.filter((r) => r.zoneId === zone.id || (Math.hypot(r.lat - zone.coordinates[0], r.lon - zone.coordinates[1]) < 0.02));
+      const burstReport = zoneReports.find((r) => r.category === "burst_pipe");
 
       // Custom pulse/solid circle marker
       const marker = L.circleMarker(zone.coordinates, {
@@ -94,9 +102,15 @@ export default function InteractiveRiskMap({
         className: "custom-map-label"
       });
 
-      // Interactive popup
+      // Interactive popup with supporting evidence
+      const supportingEvidenceHtml = burstReport && zone.anomaly.detected
+        ? `<div style="background: #FDF5F8; border-left: 3px solid #C62828; padding: 6px 8px; margin-top: 8px; font-size: 11px; color: #9B1C2C; border-radius: 2px;">
+            <strong>Supporting Evidence:</strong> Active citizen burst-pipe report logged (${burstReport.id}) confirms root cause for demand surge flag!
+           </div>`
+        : "";
+
       marker.bindPopup(`
-        <div style="font-family: inherit; font-size: 13px; line-height: 1.5; min-width: 200px;">
+        <div style="font-family: inherit; font-size: 13px; line-height: 1.5; min-width: 220px;">
           <h4 style="margin: 0 0 4px 0; color: #0B1F3A; font-size: 15px;">${zone.name}</h4>
           <div style="color: #5A6B8B; font-size: 11px; margin-bottom: 6px;">${zone.displayName}</div>
           <hr style="border: 0; border-top: 1px solid #DCE5EF; margin: 6px 0;" />
@@ -104,6 +118,7 @@ export default function InteractiveRiskMap({
           <div><strong>Available Supply:</strong> ${JalsetuMath.formatNumber(zone.availableSupply)} L</div>
           <div><strong>Estimated Shortage:</strong> <span style="color: ${shortage > 0 ? '#C62828' : '#2B8A3E'}; font-weight: 700;">${JalsetuMath.formatNumber(shortage)} L</span></div>
           <div><strong>Shortage Risk:</strong> <span style="color: ${markerColor}; font-weight: 700;">${risk} Risk</span></div>
+          ${supportingEvidenceHtml}
           <div style="margin-top: 8px; font-size: 11px; color: #7C8EA8; font-style: italic;">(Simulated Zone Coordinates for Municipal Demo)</div>
         </div>
       `);
@@ -113,11 +128,58 @@ export default function InteractiveRiskMap({
       });
     });
 
+    // Render Citizen Wastage Report Pins on Map
+    if (reports && reports.length > 0) {
+      reports.forEach((report) => {
+        const isBurst = report.category === "burst_pipe";
+        const reportPinIcon = L.divIcon({
+          className: "report-map-pin",
+          html: `
+            <div style="
+              background: ${isBurst ? '#C62828' : '#0867C4'};
+              color: #FFFFFF;
+              width: 26px;
+              height: 26px;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 12px;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+              border: 2px solid #FFFFFF;
+              cursor: pointer;
+            ">
+              ${isBurst ? '💥' : '💧'}
+            </div>
+          `,
+          iconSize: [26, 26],
+          iconAnchor: [13, 13]
+        });
+
+        const reportMarker = L.marker([report.lat, report.lon], { icon: reportPinIcon }).addTo(map);
+
+        reportMarker.bindPopup(`
+          <div style="font-size: 13px; line-height: 1.5; min-width: 210px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span style="font-weight: 700; color: #C62828; font-size: 12px; text-transform: uppercase;">Citizen Wastage Pin</span>
+              <span style="font-size: 10px; background: #E8F3FE; color: #0867C4; padding: 2px 6px; border-radius: 999px; font-weight: 600;">${report.status}</span>
+            </div>
+            <div><strong>Report ID:</strong> <span style="font-family: monospace; font-weight: 700;">${report.id}</span></div>
+            <div><strong>Category:</strong> ${report.category.replace('_', ' ').toUpperCase()}</div>
+            <div><strong>Severity:</strong> ${report.severity?.toUpperCase() || 'MODERATE'}</div>
+            ${report.addressText ? `<div style="font-size: 11px; color: #5A6B8B; margin: 4px 0;"><strong>Near:</strong> ${report.addressText}</div>` : ''}
+            <div style="font-size: 12px; margin-top: 4px; background: #F7FAFB; padding: 4px 6px; border-radius: 4px;">${report.description}</div>
+            <div style="font-size: 10px; color: #0867C4; margin-top: 6px; font-weight: 600;">Authority: MCD Water Board</div>
+          </div>
+        `);
+      });
+    }
+
     // Invalidate map size to prevent gray tiles
     setTimeout(() => {
       map.invalidateSize();
     }, 250);
-  }, [zones, onSelectZone]);
+  }, [zones, reports, onSelectZone]);
 
   // Handle Simulation Route Drawing
   useEffect(() => {

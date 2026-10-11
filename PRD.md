@@ -98,6 +98,11 @@ problem statement), *Brownie* (optional bonus in the statement) or *Proposed*.
 | PRD-013 | Weather is an input factor and the UI shows how weather conditions change predicted demand. | Should | Brownie |
 | PRD-014 | Forecast accuracy metrics (MAE, sMAPE vs. baseline) are visible in the UI. | Should | Proposed |
 | PRD-015 | The user can export the recommendation as CSV. | Could | Proposed |
+| PRD-016 | The site has a separate "Report" page, reachable from the main navigation, where a citizen can report water wastage (e.g. a burst pipe) by uploading 1–3 photos (JPEG or PNG), marking the location on a map or using "Use my location", adding an address or landmark, choosing a category (Burst pipe, Leak, Overflow, Other) and describing the problem. | Could | Proposed |
+| PRD-017 | MCD staff see all reports in a protected review view, with photo, map location and status, and can change status. | Could | Proposed |
+| PRD-018 | Reports appear as pins on the map. A burst-pipe report in a zone that is also flagged abnormal or surging is shown as supporting evidence for that flag. | Could | Proposed |
+| PRD-020 | After submitting, the citizen gets a report ID and can look up its status. | Could | Proposed |
+| PRD-021 | The Report page works on its own: it does not require forecasts, a trained model or zone data to load and submit. | Could | Proposed |
 
 ## 7. User stories
 
@@ -109,6 +114,7 @@ problem statement), *Brownie* (optional bonus in the statement) or *Proposed*.
 | US-4 | As an operations officer, I want a redistribution plan so I know how to move water. | Plan lists transfers between zones; total allocated ≤ total supply; no zone allocated more than its predicted demand. | PRD-008 |
 | US-5 | As a planner, I want to change total supply and see the plan change. | Moving the supply control updates shortages and the plan without a page reload. | PRD-010 |
 | US-6 | As a planner, I want to compare a future period with history. | Selecting a period shows predicted vs. historical series on one chart. | PRD-012 |
+| US-7 | As a citizen, I want to report a water leak or burst pipe with a photo and location so the authorities can fix it. | Given I open the Report page from the navigation, I can upload 1–3 photos, specify the location, pick a category and submit; I receive a report ID. A submission without a location, or with a non-image file, is rejected with a clear message. | PRD-016, PRD-020, PRD-021 |
 
 ## 8. Core user journey
 
@@ -141,6 +147,7 @@ for its suitability.
 | A-2 | The dataset has no supply data; supply is a user input or derived from history (e.g. a percentile of past consumption). | Shortage numbers are scenario-based, not measured. |
 | A-3 | The dataset has no coordinates; a small `zones.csv` with approximate lat/lon is added. | Map requirement (PRD-011) needs extra data work. |
 | A-4 | Weather is not in the dataset; it comes from a public archive or is skipped. | PRD-013 may be reduced to a time/season proxy. |
+| A-5 | The MCD destination is an in-app review view plus CSV hand-off. No real MCD API is assumed. | Real MCD API integration is outside the demo scope. |
 
 **Risks:**
 
@@ -158,6 +165,7 @@ for its suitability.
 2. What forecast horizon and time granularity does the data support?
 3. How is "available supply" defined: one total, or per-zone capacity?
 4. Are there redistribution constraints (zones that cannot give or receive water)?
+5. Which authority handles water leaks in your city? (MCD / Municipal Corporation Water Board, configured via `received_by`).
 
 **Future enhancements (Proposed, not committed):** live data feeds, leak
 localization, multi-city support, alerting by SMS or email.

@@ -87,63 +87,47 @@ file (assumption A-3 in the PRD).
 **`supply`**: scenario input, not a stored dataset. Either one total
 (`total_supply`) or per-zone `current_supply`. Definition is an open question (PRD §11).
 
+**`reports`** (citizen water wastage submissions):
+
+| Column | Type | Rules |
+|---|---|---|
+| `id` | string (UUID) | Unique primary key, returned to reporter |
+| `timestamp` | datetime (UTC) | Creation timestamp |
+| `lat`, `lon` | float | Required; within supported city bounds |
+| `address_text` | text | Optional, up to 200 characters (landmark or street) |
+| `zone_id` | string, optional | Derived from the nearest zone, or chosen by reporter |
+| `category` | enum | `burst_pipe`, `leak`, `overflow`, `other` |
+| `severity` | enum, optional | `minor`, `heavy` (reporter's view) |
+| `description` | text | Up to 500 characters |
+| `photos` | array of strings | 1–3 image paths (stored in `data/uploads/`) |
+| `status` | enum | `submitted`, `in_review`, `actioned`, `resolved`, `dismissed` |
+| `received_by` | string | Authority name from config, e.g. `MCD` |
+
+Zone assignment (nearest zone to the pin) is optional. If `zones.csv` is missing, the report is
+still saved with lat/lon and no zone.
+
 **Validation rules (PRD-001):** reject negative consumption; report duplicate
 timestamps, gaps, and zones with fewer than *K* observations (K TBD).
 
-## 5. ML specification
+### 5.5 Photo and location upload rules
 
-### 5.1 Forecasting (PRD-002, PRD-003)
-
-- **Target:** `consumption` per zone at each future hour.
-- **Features:** hour, day of week, month, is-weekend, lags (1 h, 24 h, 168 h),
-  rolling means (24 h, 168 h), zone as a categorical feature, weather
-  columns when present.
-- **Split:** time-based. Train on the earliest period, validate on the next,
-  test on the latest. No random shuffling.
-- **Horizon:** multi-step by direct strategy or recursive. **TBD** (decision D-3).
-  Lags shorter than the horizon must not leak future values.
-- **Baseline:** value from the same hour one week earlier (seasonal naive).
-- **Metrics:** MAE, sMAPE per zone and overall. Report model vs. baseline (PRD-014).
-
-### 5.2 Anomaly and surge detection (PRD-004, PRD-005)
-
-- Expected value = model prediction (or per-zone, per-hour-of-week median as fallback).
-- Residual = actual − expected. Score = residual / (1.4826 × MAD of historical
-  residuals for that zone).
-- **Abnormal:** |score| ≥ threshold (default 3, TBD).
-- **Surge:** score ≥ threshold *and* the increase over the last 1–3 hours
-  exceeds a configurable percentage (default TBD). Reported with its own flag.
-- **Evaluation:** inject synthetic spikes and level shifts into a copy of the
-  test set; report precision and recall. Label this as synthetic.
-
-### 5.3 Shortage estimation (PRD-006, PRD-007)
-
-```text
-shortage_i   = max(0, predicted_demand_i − supply_i)
-shortage_pct = shortage_i / predicted_demand_i
-risk_i       = High   if shortage_pct ≥ t_high
-               Medium if shortage_pct ≥ t_med
-               Low    otherwise
-```
-
-`t_high`, `t_med` are configurable (defaults TBD). Demand is summed over the selected
-period.
-
-### 5.4 Redistribution (PRD-008, PRD-010)
-
-Weighted progressive filling (Proposed, decision D-4):
-
-1. Total supply `T` (user-adjustable). If `T ≥ Σ demand_i`, allocate `demand_i` to every zone.
-2. Otherwise compute weights `w_i = demand_i × (1 + risk_factor_i)`, where
-   `risk_factor` is mapped from risk level (values TBD).
-3. Allocate `T` proportionally to `w_i`, capping each zone at `demand_i`. Redistribute
-   the capped excess among uncapped zones. Repeat until no excess remains.
-4. Transfers = `allocation_i − current_supply_i`, shown as sources (negative) and sinks (positive).
-
-**Invariants (must be unit tested):** `Σ allocation_i ≤ T`; `0 ≤ allocation_i ≤ demand_i`;
-output is deterministic for equal inputs.
+1. Accept 1–3 images (JPEG or PNG only), maximum 5 MB per image.
+2. Strip EXIF metadata before saving to protect citizen privacy.
+3. Generate a secure random filename; never store files using client-supplied names.
+4. Quarantine unverified uploads in a staging directory.
+5. Location (lat/lon) is mandatory; address text is optional.
+6. A submission without a location or with a non-image file is rejected with a clear message.
+7. Reports work standalone: submitting does not depend on model inference.
+8. Validate lat/lon ranges server-side; never trust client coordinates for access control.
+9. Store location at the precision the reporter gave; treat it as personal data (retention D-7).
+10. Possible duplicate: same category within a small radius (value TBD) and a recent time window is linked to the earlier report instead of creating a new issue. (Proposed; optional.)
 
 ## 6. Internal interfaces
+
+Page routes (Proposed):
+  GET   /report                  public report form
+  GET   /report/track            public status lookup
+  GET   /mcd/reports             MCD review view (passcode required)
 
 HTTP endpoints (Proposed; paths and parameters not final):
   GET   /api/overview?time=&supply=       zone table: demand, supply, shortage, risk, flags
@@ -153,6 +137,8 @@ HTTP endpoints (Proposed; paths and parameters not final):
   POST  /api/reports                      submit a photo report (multipart)
   GET   /api/reports                      list reports (passcode required)
   PATCH /api/reports/<id>                 change status (passcode required)
+
+Report routes use their own template and their own JS file; they import no forecasting modules.
 
 Modules expose plain functions. Signatures are indicative and may change at implementation time:
 

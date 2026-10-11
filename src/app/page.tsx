@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { INITIAL_ZONES, INITIAL_USER, ROLE_PRESETS, Zone, UserProfile } from "@/lib/data";
+import { INITIAL_ZONES, INITIAL_USER, ROLE_PRESETS, INITIAL_REPORTS, Zone, UserProfile, CitizenReport } from "@/lib/data";
 import { JalsetuMath } from "@/lib/math";
 import AnimatedKpiValue from "@/components/AnimatedKpiValue";
 import ForecastSplitChart from "@/components/ForecastSplitChart";
+import ReportWastageView from "@/components/ReportWastageView";
 
 // Dynamically import Leaflet component with SSR disabled
 const InteractiveRiskMap = dynamic(() => import("@/components/InteractiveRiskMap"), {
@@ -59,6 +60,18 @@ export default function JalsetuApp() {
   const [anomalySeverityFilter, setAnomalySeverityFilter] = useState<string>("all");
   const [shortageRiskFilter, setShortageRiskFilter] = useState<string>("all");
   const [shortageSortAsc, setShortageSortAsc] = useState<boolean>(false);
+
+  // Citizen Wastage Reporting States
+  const [reports, setReports] = useState<CitizenReport[]>(INITIAL_REPORTS);
+  const [reportInitialTab, setReportInitialTab] = useState<"submit" | "track" | "mcd">("submit");
+
+  const handleAddReport = (newReport: CitizenReport) => {
+    setReports((prev) => [newReport, ...prev]);
+  };
+
+  const handleUpdateReportStatus = (id: string, newStatus: CitizenReport["status"]) => {
+    setReports((prev) => prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r)));
+  };
 
   // Fetch real telemetry from backend API route
   useEffect(() => {
@@ -187,6 +200,15 @@ export default function JalsetuApp() {
                   style={{ background: "none", border: "none" }}
                 >
                   Map
+                </button>
+              </li>
+              <li>
+                <button
+                  className={`nav-link ${activeView === "report" ? "active" : ""}`}
+                  onClick={() => { setActiveView("report"); setReportInitialTab("submit"); }}
+                  style={{ background: "none", border: "none" }}
+                >
+                  Report
                 </button>
               </li>
               <li>
@@ -337,6 +359,14 @@ export default function JalsetuApp() {
                   </div>
                   <h3 className="quick-card-title">Redistribution Plan</h3>
                   <p className="quick-card-desc">Get water allocation recommendations</p>
+                </div>
+
+                <div className="quick-card" onClick={() => { setActiveView("report"); setReportInitialTab("submit"); }}>
+                  <div className="quick-card-icon" style={{ background: "#E8F3FE", color: "#0867C4" }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  </div>
+                  <h3 className="quick-card-title">Report Water Wastage</h3>
+                  <p className="quick-card-desc">Upload photos & pin leaks for municipal resolution</p>
                 </div>
               </div>
 
@@ -555,11 +585,19 @@ export default function JalsetuApp() {
                     <div>
                       <div className="alert-title">Critical Pipe Surge Identified: Zone B</div>
                       <div className="alert-subtitle">Current consumption (850 L) is +42% above normal threshold. Residual z-score: 4.8.</div>
+                      <div style={{ fontSize: "12px", marginTop: "6px", color: "#9B1C2C", display: "flex", alignItems: "center", gap: "6px", fontWeight: 600 }}>
+                        <span>🔍 <strong>Supporting Evidence:</strong> Citizen burst-pipe report logged in Zone B (ID: MCD-2026-88F4A1) under review by MCD.</span>
+                      </div>
                     </div>
                   </div>
-                  <button className="btn btn-primary" onClick={() => { setSelectedZoneFilter("zone-b"); setActiveView("prediction"); }}>
-                    Inspect Forecast Profile
-                  </button>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => { setActiveView("report"); setReportInitialTab("track"); }}>
+                      View MCD Report
+                    </button>
+                    <button className="btn btn-primary" onClick={() => { setSelectedZoneFilter("zone-b"); setActiveView("prediction"); }}>
+                      Inspect Forecast Profile
+                    </button>
+                  </div>
                 </div>
               </div>
             </section>
@@ -789,6 +827,7 @@ export default function JalsetuApp() {
                   <div style={{ height: "420px", position: "relative" }}>
                     <InteractiveRiskMap
                       zones={zones}
+                      reports={reports}
                       selectedZoneId={selectedMapZone?.id}
                       onSelectZone={(z) => setSelectedMapZone(z)}
                       simulationActive={simulationActive}
@@ -835,6 +874,12 @@ export default function JalsetuApp() {
                         <span className="insight-icon">🔄</span>
                         <div>Optimal transfer: <strong>A → B (100,000 L)</strong></div>
                       </div>
+                      <div className="insight-item">
+                        <span className="insight-icon">📍</span>
+                        <div>
+                          <strong>{reports.length} Citizen Reports</strong> logged with MCD (Active burst pipe in Zone B).
+                        </div>
+                      </div>
                     </div>
 
                     {simulationActive && (
@@ -878,6 +923,17 @@ export default function JalsetuApp() {
                 </div>
               </div>
             </section>
+          )}
+
+          {/* VIEW 6.5: CITIZEN WATER WASTAGE REPORTING */}
+          {activeView === "report" && (
+            <ReportWastageView
+              reports={reports}
+              zones={zones}
+              onAddReport={handleAddReport}
+              onUpdateReportStatus={handleUpdateReportStatus}
+              initialTab={reportInitialTab}
+            />
           )}
 
           {/* VIEW 7: ABOUT */}

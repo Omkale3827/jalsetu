@@ -97,11 +97,11 @@ Done requires evidence (see [AGENTS.md](AGENTS.md#6-before-you-finish-a-task)).
   - Priority: High · Status: Planned · Related: PRD-008 · Dependencies: TASK-015, TASK-016
   - Acceptance: tests prove Σ allocation ≤ total supply, 0 ≤ allocation ≤ demand, determinism; high-risk zones receive priority in a worked example.
 
-## M4 UI
+## M4 Web & UI
 
-- [x] **TASK-018 — UI shell and theme** (Impl)
+- [x] **TASK-018 — UI shell, theme, and tokens** (Impl)
   - Priority: High · Status: Done · Related: DESIGN_SYSTEM.md · Dependencies: TASK-001
-  - Acceptance: Responsive navigation, token styles (`#012A5C` navbar, `#F3F8FE` bg, `#0867C4` primary), accessible contrast verified.
+  - Acceptance: Responsive navigation, token styles (`#012A5C` navbar, `#F3F8FE` bg, `#0867C4` primary), accessible contrast verified; no Flask imports in UI core logic.
 - [x] **TASK-019 — Overview / Dashboard page** (Impl)
   - Priority: High · Status: Done · Related: PRD-006, PRD-009 · Dependencies: TASK-018
   - Acceptance: 4 KPI cards (Total Demand, Available Supply, Shortage, Monitored Zones), quick access cards, priority table matching mockup 1.
@@ -120,33 +120,12 @@ Done requires evidence (see [AGENTS.md](AGENTS.md#6-before-you-finish-a-task)).
 - [x] **TASK-024 — Map and visualizations page** (Impl)
   - Priority: Medium · Status: Done · Related: PRD-011, PRD-013 · Dependencies: TASK-019
   - Acceptance: Interactive Leaflet map with colored risk markers, Key Insights panel, Zone B trend chart, Weather Impact card matching mockup 6.
-- [ ] **TASK-018 — Service layer** (Impl)
-  - Priority: High · Status: Planned · Related: all Must · Dependencies: TASK-013, TASK-017
-  - Acceptance: one call returns zone table, series and plan; no Flask imports.
 - [ ] **TASK-041 — Flask app skeleton and JSON API routes** (Impl)
   - Priority: High · Status: Planned · Related: all Must · Dependencies: TASK-018
   - Acceptance: each /api route above returns JSON for a fixture dataset; route tests pass.
-- [ ] **TASK-019 — Design tokens and theme** (Impl)
-  - Priority: Medium · Status: Planned · Related: NFR-003 · Dependencies: TASK-001
-  - Acceptance: tokens from [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) in code; contrast of text and status pairs checked and recorded.
-- [ ] **TASK-020 — Overview page** (Impl)
-  - Priority: High · Status: Planned · Related: PRD-004, PRD-006, PRD-007, PRD-008 · Dependencies: TASK-018, TASK-019, TASK-041
-  - Acceptance: zone table shows demand, supply, shortage, risk, anomaly tags; recommendation list shown; sorted by risk by default.
-- [ ] **TASK-021 — Zone detail charts** (Impl)
-  - Priority: High · Status: Planned · Related: PRD-009 · Dependencies: TASK-020, TASK-041
-  - Acceptance: trend, forecast and anomaly markers for a selected zone with labeled axes.
-- [ ] **TASK-022 — Show model metrics** (Impl)
-  - Priority: Low · Status: Planned · Related: PRD-014 · Dependencies: TASK-010, TASK-020, TASK-041
-  - Acceptance: metrics vs. baseline visible in the UI.
 
 ## M5 Bonus features
 
-- [ ] **TASK-023 — Supply what-if control** (Impl)
-  - Priority: Medium · Status: Planned · Related: PRD-010 · Dependencies: TASK-020
-  - Acceptance: changing supply updates shortage and plan in under 2 s without recomputing the forecast.
-- [ ] **TASK-024 — Zone map** (Impl)
-  - Priority: Medium · Status: Planned · Related: PRD-011 · Dependencies: TASK-006, TASK-020
-  - Acceptance: markers show current demand, predicted demand and risk.
 - [ ] **TASK-025 — Future period vs. history comparison** (Impl)
   - Priority: Medium · Status: Planned · Related: PRD-012 · Dependencies: TASK-021
   - Acceptance: user selects a period; predicted and historical series are shown together.
@@ -156,6 +135,45 @@ Done requires evidence (see [AGENTS.md](AGENTS.md#6-before-you-finish-a-task)).
 - [ ] **TASK-027 — CSV export of recommendation** (Impl)
   - Priority: Low · Status: Planned · Related: PRD-015 · Dependencies: TASK-020
   - Acceptance: downloaded CSV matches the on-screen plan.
+
+## M5.2 Citizen Wastage Reports (PRD-016 to PRD-021)
+
+- [ ] **TASK-032 — Decide report storage (D-6)** (Research)
+  - Priority: Medium · Status: Planned · Related: PRD-016 · Dependencies: none
+  - Acceptance: decision recorded in TECH_SPEC.md (D-6); authority that receives reports confirmed (open question 7: MCD).
+- [ ] **TASK-033 — Ingest and validate photo and location reports** (Impl)
+  - Priority: High · Status: Planned · Related: PRD-016 · Dependencies: TASK-032
+  - Acceptance: validates schema, photo file types (JPEG/PNG), size ≤ 5 MB; lat/lon validation tests cover bounding box; issues reported with user-friendly errors.
+- [ ] **TASK-034 — Quarantine and EXIF stripping for photo uploads** (Impl)
+  - Priority: Medium · Status: Planned · Related: PRD-016, NFR-003 · Dependencies: TASK-033
+  - Acceptance: uploaded images have EXIF data stripped and saved with secure random filenames in quarantine staging directory.
+- [ ] **TASK-035 — Report page (`/report`) with photo drop zone** (Impl)
+  - Priority: High · Status: Planned · Related: PRD-016, PRD-021 · Dependencies: TASK-033, TASK-041
+  - Acceptance: public `/report` page has photo drop zone, location picker, category chips, severity selector; a report cannot be submitted without a location; confirmation shows a report ID; page loads and submits with the forecasting model absent; link appears in the main nav.
+- [ ] **TASK-036 — MCD review view (`/mcd/reports`)** (Impl)
+  - Priority: High · Status: Planned · Related: PRD-017 · Dependencies: TASK-033, TASK-041
+  - Acceptance: passcode-protected `/mcd/reports` view lists reports with photos, status chips, map pins; staff can update status.
+- [ ] **TASK-037 — CSV hand-off of reports** (Impl)
+  - Priority: Low · Status: Planned · Related: PRD-017, A-5 · Dependencies: TASK-036
+  - Acceptance: CSV export of MCD reports matches the stored table schema.
+- [ ] **TASK-038 — Show reports on map** (Impl)
+  - Priority: Medium · Status: Planned · Related: PRD-018 · Dependencies: TASK-024, TASK-035
+  - Acceptance: pins for reports appear on the interactive map; burst-pipe report in an abnormal zone is labeled as supporting evidence.
+- [ ] **TASK-039 — Link burst-pipe reports to surge/anomaly flags** (Impl)
+  - Priority: Low · Status: Planned · Related: PRD-018 · Dependencies: TASK-013, TASK-035
+  - Acceptance: zone with abnormal consumption cross-referenced against active burst pipe reports.
+- [ ] **TASK-040 — Report rate limiting and spam prevention** (Impl)
+  - Priority: Low · Status: Planned · Related: NFR-004 · Dependencies: TASK-035
+  - Acceptance: rate limiting per IP/session on report submission.
+- [ ] **TASK-042 — Location picker (map pin, browser geolocation, address text)** (Impl)
+  - Priority: Medium · Status: Planned · Related: PRD-016 · Dependencies: TASK-035, TASK-024
+  - Acceptance: pin position saves lat/lon; denying geolocation permission still allows manual pin or address.
+- [ ] **TASK-043 — Report status lookup by ID** (Impl)
+  - Priority: Low · Status: Planned · Related: PRD-020 · Dependencies: TASK-036
+  - Acceptance: a valid ID shows its status; an unknown ID shows a clear "not found" message and reveals no other reports.
+- [ ] **TASK-044 — Add "Report" to main navigation and a Home quick-access card** (Impl)
+  - Priority: Low · Status: Planned · Related: PRD-016 · Dependencies: TASK-035, TASK-020
+  - Acceptance: link works on all pages; keyboard focus order matches visual order.
 
 ## M6 Polish and demo
 
@@ -185,9 +203,9 @@ Done requires evidence (see [AGENTS.md](AGENTS.md#6-before-you-finish-a-task)).
 
 | Status | Count |
 |---|---|
-| Done | 8 |
+| Done | 9 |
 | In Progress | 0 |
 | Blocked | 0 |
-| Planned | 41 |
+| Planned | 35 |
 
 Update this table whenever a task status changes.

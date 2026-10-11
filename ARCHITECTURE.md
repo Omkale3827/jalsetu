@@ -73,8 +73,9 @@ flowchart TB
 | Allocation | Compute the redistribution plan | PRD-008, PRD-010 |
 | Service layer | Orchestrate the above for the UI; own caching | all |
 | UI | Pages: Overview, Zone detail, Map, What-if, Period comparison | PRD-009 to PRD-013 |
+| Citizen reports (optional, separate module) | Own routes, templates, storage and validation. Depends only on config and optionally `zones.csv`. Can be removed or disabled without touching forecasting. | PRD-016 to PRD-021 |
 
-Rule: routes and templates contain no business logic; the service layer never imports Flask.
+Rule: routes and templates contain no business logic; the service layer never imports Flask. The forecasting modules never import the reports module. The map page may read report counts through the service layer (PRD-018).
 
 ## 5. Data flow
 
@@ -108,6 +109,8 @@ sequenceDiagram
 | `data/processed/` | Canonical Parquet or CSV tables | Reproducible from raw |
 | `models/` | Trained model and metrics | Versioned by training date |
 | `zones.csv` | Zone names and coordinates | Hand-maintained |
+| `data/reports/` | Stored citizen wastage reports | JSON or SQLite |
+| `data/uploads/` | Sanitized citizen upload photos | Stripped EXIF, randomized filenames |
 
 No database (decision D-1 in [TECH_SPEC.md](TECH_SPEC.md#12-open-decisions)).
 

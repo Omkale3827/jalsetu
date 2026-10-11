@@ -124,3 +124,53 @@ export const ROLE_PRESETS = {
     lastLogin: "2026-10-11 09:30 AM IST"
   }
 };
+
+export interface CitizenReport {
+  id: string;
+  timestamp: string;
+  lat: number;
+  lon: number;
+  addressText?: string;
+  zoneId?: string;
+  zoneName?: string;
+  category: "burst_pipe" | "leak" | "overflow" | "other";
+  severity?: "minor" | "heavy";
+  description: string;
+  photos: string[];
+  status: "submitted" | "in_review" | "actioned" | "resolved" | "dismissed";
+  receivedBy: string;
+}
+
+export const INITIAL_REPORTS: CitizenReport[] = [
+  {
+    id: "MCD-2026-88F4A1",
+    timestamp: "2026-10-11T08:15:00Z",
+    lat: 19.1998,
+    lon: 72.9640,
+    addressText: "Near Majiwada Junction Flyover, Central Commercial Ward",
+    zoneId: "zone-b",
+    zoneName: "Zone B (Central Commercial)",
+    category: "burst_pipe",
+    severity: "heavy",
+    description: "Main underground feeder pipe burst under the pavement. Massive pressurized geyser leaking onto the roadway.",
+    photos: ["/images/burst_pipe_sample.jpg"],
+    status: "in_review",
+    receivedBy: "MCD"
+  },
+  {
+    id: "MCD-2026-31C9D2",
+    timestamp: "2026-10-11T07:40:00Z",
+    lat: 19.2045,
+    lon: 72.9890,
+    addressText: "Ghodbunder Road Service Lane, Industrial Sector 4",
+    zoneId: "zone-d",
+    zoneName: "Zone D (Industrial Belt)",
+    category: "leak",
+    severity: "minor",
+    description: "Secondary connection joint dripping continuously into stormwater drain.",
+    photos: ["/images/leak_sample.jpg"],
+    status: "actioned",
+    receivedBy: "MCD"
+  }
+];
+

@@ -49,8 +49,13 @@ Observed in the mockup:
 | Shortage Prediction | Predicted demand, available supply, shortage, status per zone; total shortage note | PRD-006, PRD-007 |
 | Redistribution Plan | Available supply, priority zones, allocation table, constraints note | PRD-008, PRD-010 |
 | Map and Visualizations | Zone map with risk markers, key insights, trend chart, weather impact | PRD-009, PRD-011, PRD-013 |
+| Report Wastage (new, not in mockup) | Own page at `/report`. Photo drop zone, location picker, category, severity, description, submit, confirmation with report ID | PRD-016, PRD-021 |
+| Track Report (new) | Own page at `/report/track`. Enter report ID to see status | PRD-020 |
+| MCD Reports (new) | Own page at `/mcd/reports`, passcode-protected, not linked in the public nav | PRD-017 |
 
-Global navigation: Home · Prediction · Analysis · Map · About, plus a user/profile icon (Unconfirmed purpose; no accounts are in scope).
+Global navigation: Home · Prediction · Analysis · Map · **Report** · About, plus a user/profile icon (the Report link uses the same nav style; no special color).
+
+Home page: add a fifth "Quick Access" card "Report Water Wastage" linking to `/report` (the mockup shows four cards; keep the grid at 4 columns on desktop and wrap the fifth).
 
 ## 3. Color
 
@@ -182,6 +187,9 @@ Radius and shadow values are visual estimates, **Proposed**.
 | **Map markers** | Pin per zone, colored by risk (High red, Medium orange, Low green), zone label beside it. |
 | **Key insights panel** | Icon plus one-sentence insight list (highest shortage, surplus, total shortage, recommended transfer). |
 | **Weather card** | Large temperature, condition icon and label, one line on demand impact. |
+| **Location picker** | Map with a draggable pin, a "Use my location" button, and an address/landmark text field. Pin uses `color.primary`. Coordinates are shown as text for screen-reader users. Falls back to text address when geolocation is denied or unavailable. |
+| **Category chips** | Group of selectable chips: Burst pipe, Leak, Overflow, Other. Single-select. Selected chip: `status.info` fill with `color.primary` border. |
+| **Severity selector** | Radio group or pill: Minor leak / Heavy flow. Clear helper text. |
 
 ## 8. States
 
@@ -243,6 +251,7 @@ Rules:
 - Keyboard operation for all controls; visible focus (§8).
 - Status conveyed by text plus color; trend by word plus arrow.
 - Form controls have visible labels.
+- The location picker must be fully usable without the map: address field plus "Use my location" (or manual lat/lon inputs) must be enough to submit, keyboard-accessible, and screen-reader labeled.
 - `color.border.input` is `#7C8EA8` (3.3:1) so input edges are visible.
 - Not yet verified: screen reader behavior, zoom to 200%, real browser rendering.
 
