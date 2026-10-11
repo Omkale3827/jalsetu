@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jalsetu — Smart Water Redistribution System</title>
+  
+  <!-- Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js and Leaflet CSS & JS via standard CDN -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Application Stylesheet -->
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <!-- Top Navigation Bar (Strictly following Mockup & DESIGN_SYSTEM.md) -->
+  <header class="navbar" role="banner">
+    <div class="container nav-container">
+      <a href="#home" class="brand" data-route="home">
+        <span class="brand-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+          </svg>
+        </span>
+        <span>Smart Water Redistribution</span>
+      </a>
+
+      <nav aria-label="Main Navigation">
+        <ul class="nav-links">
+          <li><a href="#home" class="nav-link active" data-route="home">Home</a></li>
+          <li><a href="#prediction" class="nav-link" data-route="prediction">Prediction</a></li>
+          <li class="nav-dropdown">
+            <a href="#analysis" class="nav-link" data-route="analysis">Analysis ▾</a>
+            <ul class="nav-dropdown-menu">
+              <li class="nav-dropdown-item"><a href="#anomalies" data-route="anomalies">Abnormal Consumption</a></li>
+              <li class="nav-dropdown-item"><a href="#shortages" data-route="shortages">Shortage Prediction</a></li>
+              <li class="nav-dropdown-item"><a href="#redistribution" data-route="redistribution">Redistribution Plan</a></li>
+            </ul>
+          </li>
+          <li><a href="#map" class="nav-link" data-route="map">Map</a></li>
+          <li><a href="#about" class="nav-link" data-route="about">About</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-right-actions">
+        <button id="nav-user-btn" class="user-badge" title="Click to view Profile / Switch Account" aria-label="Current User Profile" style="border:none; cursor:pointer;">
+          <span id="nav-user-initials" style="font-weight:700;">SS</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Views Container -->
+  <main id="main-content" class="main-content" role="main">
+    <div class="container">
+
+      <!-- ========================================== -->
+      <!-- VIEW 1: HOME / OPERATIONS DASHBOARD        -->
+      <!-- ========================================== -->
+      <section id="view-home" class="page-view active" aria-labelledby="home-hero-title">
+        <!-- Hero Section -->
+        <div class="hero-card">
+          <div class="hero-left">
+            <h1 id="home-hero-title" class="hero-title">Smarter Water<br>for a Better Tomorrow</h1>
+            <p class="hero-subtitle">Predicting demand. Detecting shortages.<br>Recommending better distribution.</p>
+            
+            <div class="hero-controls">
+              <div class="form-group" style="min-width: 180px;">
+                <label for="city-selector" class="form-label">Select City</label>
+                <select id="city-selector" class="form-select">
+                  <option value="Thane" selected>Thane</option>
+                  <option value="Pune">Pune</option>
+                  <option value="Navi Mumbai">Navi Mumbai</option>
+                </select>
+              </div>
+              <button class="btn btn-primary" data-route="prediction">Get Started</button>
+            </div>
+          </div>
+          
+          <div class="hero-visual" style="background: transparent; border: none; width: 380px; height: 230px; display: flex; align-items: center; justify-content: center;">
+            <img src="/assets/smart_city_hero.png" alt="Smart City Infrastructure and Modern Water Management" style="width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(1, 42, 92, 0.08));">
+          </div>
+        </div>
+
+        <!-- 4 KPI Cards Row (Mockup 1) -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-icon-box blue" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+            </div>
+            <div class="kpi-content">
+              <span class="kpi-label">Total Demand (Today)</span>
+              <span id="kpi-total-demand" class="kpi-value">1,850,000 <span class="unit">L</span></span>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-icon-box green" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 12h10M12 7v10"/></svg>
+            </div>
+            <div class="kpi-content">
+              <span class="kpi-label">Available Supply</span>
+              <span id="kpi-available-supply" class="kpi-value positive">1,620,000 <span class="unit">L</span></span>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-icon-box red" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div class="kpi-content">
+              <span class="kpi-label">Estimated Shortage</span>
+              <span id="kpi-estimated-shortage" class="kpi-value negative">230,000 <span class="unit">L</span></span>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-icon-box teal" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+            </div>
+            <div class="kpi-content">
+              <span class="kpi-label">Zones Monitored</span>
+              <span id="kpi-zones-count" class="kpi-value">5</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Access Section (Mockup 1) -->
+        <h2 style="font-size: 16px; font-weight: 700; color: var(--color-text-primary); margin-bottom: var(--space-3);">Quick Access</h2>
+        <div class="quick-access-grid">
+          <div class="quick-card" data-target="prediction">
+            <div class="quick-card-icon" style="background:#E8F3FE; color:#0867C4;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-6 6"/></svg>
+            </div>
+            <h3 class="quick-card-title">Demand Prediction</h3>
+            <p class="quick-card-desc">View forecasted water usage for each zone</p>
+          </div>
+
+          <div class="quick-card" data-target="anomalies">
+            <div class="quick-card-icon" style="background:#FDC8C8; color:#C62828;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+            </div>
+            <h3 class="quick-card-title">Check for Anomalies</h3>
+            <p class="quick-card-desc">Find unusual consumption patterns & surges</p>
+          </div>
+
+          <div class="quick-card" data-target="shortages">
+            <div class="quick-card-icon" style="background:#E8F3FE; color:#0867C4;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+            </div>
+            <h3 class="quick-card-title">View Shortages</h3>
+            <p class="quick-card-desc">See which zones may face water shortage</p>
+          </div>
+
+          <div class="quick-card" data-target="redistribution">
+            <div class="quick-card-icon" style="background:#D5F6D8; color:#14632F;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+            </div>
+            <h3 class="quick-card-title">Redistribution Plan</h3>
+            <p class="quick-card-desc">Get water allocation recommendations</p>
+          </div>
+        </div>
+
+        <!-- Priority Zones Overview Table -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Operational Zone Status Overview</h2>
+              <p class="card-subtitle">Real-time demand vs available supply for Thane District</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" data-route="redistribution">Reallocate Supply</button>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="home-priority-table">
+              <thead>
+                <tr>
+                  <th>Zone Name</th>
+                  <th class="text-right">Predicted Demand</th>
+                  <th class="text-right">Available Supply</th>
+                  <th class="text-right">Shortage</th>
+                  <th class="text-center">Shortage Risk</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- VIEW 2: DEMAND PREDICTION                 -->
+      <!-- ========================================== -->
+      <section id="view-prediction" class="page-view" aria-labelledby="pred-page-title">
+        <div class="card">
+          <h1 id="pred-page-title" class="card-title" style="font-size:22px; margin-bottom: 4px;">Demand Prediction</h1>
+          <p class="card-subtitle" style="margin-bottom: var(--space-5);">
+            AI model predicts future water consumption for each zone based on historical data and weather patterns.
+          </p>
+
+          <div style="display:flex; gap: var(--space-4); align-items:flex-end; margin-bottom: var(--space-6); flex-wrap:wrap;">
+            <div class="form-group" style="min-width: 180px;">
+              <label for="pred-date-select" class="form-label">Select Date / Horizon</label>
+              <select id="pred-date-select" class="form-select">
+                <option value="24h" selected>Next 24 Hours</option>
+                <option value="48h">Next 48 Hours</option>
+                <option value="7d">Next 7 Days</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="min-width: 180px;">
+              <label for="pred-zone-select" class="form-label">Select Zone</label>
+              <select id="pred-zone-select" class="form-select">
+                <option value="all" selected>All Zones</option>
+                <option value="zone-a">Zone A</option>
+                <option value="zone-b">Zone B</option>
+                <option value="zone-c">Zone C</option>
+                <option value="zone-d">Zone D</option>
+                <option value="zone-e">Zone E</option>
+              </select>
+            </div>
+
+            <button class="btn btn-primary" id="btn-refresh-forecast">Predict</button>
+          </div>
+
+          <!-- Line Chart -->
+          <h2 style="font-size:16px; font-weight:700; margin-bottom: var(--space-3);">Predicted Water Consumption (All Zones)</h2>
+          <div style="height: 320px; position:relative; margin-bottom: var(--space-6);">
+            <canvas id="demandPredictionChart"></canvas>
+          </div>
+
+          <!-- Predicted Demand Table -->
+          <h2 style="font-size:16px; font-weight:700; margin-bottom: var(--space-3);">Predicted Demand (Next 24 Hours)</h2>
+          <div class="table-responsive">
+            <table class="data-table" id="demand-prediction-table">
+              <thead>
+                <tr>
+                  <th>Zone</th>
+                  <th class="text-right">Predicted Demand (kL)</th>
+                  <th class="text-center">Trend</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- VIEW 3: ABNORMAL CONSUMPTION DETECTION     -->
+      <!-- ========================================== -->
+      <section id="view-anomalies" class="page-view" aria-labelledby="anomaly-page-title">
+        <div class="card">
+          <h1 id="anomaly-page-title" class="card-title" style="font-size:22px; margin-bottom: 4px;">Abnormal Consumption Detection</h1>
+          <p class="card-subtitle" style="margin-bottom: var(--space-5);">
+            The system compares current consumption with historical patterns to detect unusual changes.
+          </p>
+
+          <div class="table-responsive" style="margin-bottom: var(--space-6);">
+            <table class="data-table" id="anomaly-table">
+              <thead>
+                <tr>
+                  <th>Zone</th>
+                  <th class="text-right">Current Consumption (L)</th>
+                  <th class="text-right">Normal Range (L)</th>
+                  <th class="text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Alert Banner matching Mockup 3 -->
+          <div class="alert-banner" role="alert">
+            <div class="alert-banner-left">
+              <span class="alert-icon" aria-hidden="true">⚠️</span>
+              <div>
+                <div class="alert-title">Unusual spike detected in Zone B</div>
+                <div class="alert-subtitle">Current consumption (850 L) is 42% higher than the normal range.</div>
+              </div>
+            </div>
+            <button class="btn btn-primary" data-route="map">View Details</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- VIEW 4: SHORTAGE PREDICTION               -->
+      <!-- ========================================== -->
+      <section id="view-shortages" class="page-view" aria-labelledby="shortage-page-title">
+        <div class="card">
+          <h1 id="shortage-page-title" class="card-title" style="font-size:22px; margin-bottom: 4px;">Shortage Prediction</h1>
+          <p class="card-subtitle" style="margin-bottom: var(--space-5);">
+            Shows the expected demand, available supply and estimated shortage for each zone.
+          </p>
+
+          <div class="table-responsive" style="margin-bottom: var(--space-6);">
+            <table class="data-table" id="shortage-prediction-table">
+              <thead>
+                <tr>
+                  <th>Zone</th>
+                  <th class="text-right">Predicted Demand (L)</th>
+                  <th class="text-right">Available Supply (L)</th>
+                  <th class="text-right">Shortage (L)</th>
+                  <th class="text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Total Shortage Banner matching Mockup 4 -->
+          <div class="info-note-banner">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            <div>
+              <strong id="shortage-banner-total">Total Estimated Shortage: 450,000 L</strong>
+              <div style="font-size:12px; opacity:0.9;">(This is the total amount of water needed to meet predicted demand)</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- VIEW 5: WATER REDISTRIBUTION PLAN         -->
+      <!-- ========================================== -->
+      <section id="view-redistribution" class="page-view" aria-labelledby="redist-page-title">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h1 id="redist-page-title" class="card-title" style="font-size:22px; margin-bottom: 4px;">Recommended Water Redistribution</h1>
+              <p class="card-subtitle">Based on predicted demand, current supply and shortage risk.</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="export-redistribution-btn">Export Plan (CSV)</button>
+          </div>
+
+          <!-- Supply & Priority boxes matching Mockup 5 -->
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); margin-bottom: var(--space-6);">
+            <div style="background:#E8F3FE; border:1px solid #C8E1FA; border-radius:var(--radius-md); padding:var(--space-4);">
+              <div style="font-size:13px; color:#0553A0; font-weight:600; margin-bottom:4px;">💧 Available for Redistribution</div>
+              <div id="redistribution-supply-value" style="font-size:26px; font-weight:700; color:#0867C4;">150,000 L</div>
+            </div>
+
+            <div style="background:#FDF4F7; border:1px solid #F9CFDC; border-radius:var(--radius-md); padding:var(--space-4);">
+              <div style="font-size:13px; color:#9B1C2C; font-weight:600; margin-bottom:4px;">🚨 Priority Zones</div>
+              <div style="font-size:13px; color:var(--color-text-primary); line-height:1.4;">
+                <div>1. <strong>Zone B</strong> (Highest risk)</div>
+                <div>2. <strong>Zone C</strong> (Medium risk)</div>
+                <div>3. <strong>Zone D</strong> (Low risk)</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Interactive What-If Supply Slider (PRD-010) -->
+          <div class="slider-control-box">
+            <div class="slider-header">
+              <label for="redistribution-supply-slider" style="font-size:14px; font-weight:600; color:var(--color-text-primary);">
+                What-If Scenario: Adjust Total Available City Supply
+              </label>
+              <span style="font-size:12px; color:var(--color-text-secondary);">(Live recalculation)</span>
+            </div>
+            <input type="range" id="redistribution-supply-slider" class="range-slider" min="1000000" max="3000000" step="50000" value="1620000">
+            <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--color-text-secondary); margin-top:4px;">
+              <span>Deficit (1,000,000 L)</span>
+              <span>Baseline (1,620,000 L)</span>
+              <span>Surplus (3,000,000 L)</span>
+            </div>
+          </div>
+
+          <!-- Redistribution Table matching Mockup 5 -->
+          <div class="table-responsive" style="margin-bottom: var(--space-4);">
+            <table class="data-table" id="redistribution-plan-table">
+              <thead>
+                <tr>
+                  <th>Zone</th>
+                  <th class="text-right">Current Supply (L)</th>
+                  <th class="text-right">Recommended Allocation (L)</th>
+                  <th class="text-right">New Supply (L)</th>
+                  <th class="text-right">Remaining Shortage (L)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Note Banner -->
+          <div class="info-note-banner teal">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            <div>
+              <strong>Note:</strong> Redistribution is subject to pipeline capacity and infrastructure constraints.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- VIEW 6: MAP VIEW & VISUALISATIONS          -->
+      <!-- ========================================== -->
+      <section id="view-map" class="page-view" aria-labelledby="map-page-title">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h1 id="map-page-title" class="card-title" style="font-size:22px; margin-bottom: 4px;">City Water Map</h1>
+              <p class="card-subtitle">View zones, demand, shortage risk and key insights.</p>
+            </div>
+            <!-- Legend matching Mockup 6 -->
+            <div style="display:flex; gap:12px; font-size:12px; align-items:center;">
+              <span style="display:flex; align-items:center; gap:4px;"><span style="width:8px; height:8px; border-radius:50%; background:#D9363E;"></span> High Risk</span>
+              <span style="display:flex; align-items:center; gap:4px;"><span style="width:8px; height:8px; border-radius:50%; background:#FFA94D;"></span> Medium Risk</span>
+              <span style="display:flex; align-items:center; gap:4px;"><span style="width:8px; height:8px; border-radius:50%; background:#40C057;"></span> Low Risk</span>
+            </div>
+          </div>
+
+          <!-- Map and Key Insights Grid matching Mockup 6 -->
+          <div class="map-view-grid">
+            <div id="map-container" role="application" aria-label="Interactive city zone map"></div>
+
+            <!-- Key Insights Card -->
+            <div style="background:var(--color-surface-muted); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:var(--space-4); display:flex; flex-direction:column; justify-content:space-between;">
+              <div>
+                <h2 style="font-size:15px; font-weight:700; margin-bottom:var(--space-3); color:var(--color-text-primary);">Key Insights</h2>
+                <div class="insight-item">
+                  <span class="insight-icon">⚠️</span>
+                  <div><strong>Zone B</strong> has the highest shortage risk.</div>
+                </div>
+                <div class="insight-item">
+                  <span class="insight-icon">💧</span>
+                  <div><strong>Zone A</strong> has surplus supply (100,000 L).</div>
+                </div>
+                <div class="insight-item">
+                  <span class="insight-icon">📉</span>
+                  <div>Total city shortage: <strong>450,000 L</strong></div>
+                </div>
+                <div class="insight-item">
+                  <span class="insight-icon">🔄</span>
+                  <div>Recommended transfer: <strong>A → B (100,000 L)</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Grid: Consumption Trend Chart & Weather Impact matching Mockup 6 -->
+          <div style="display:grid; grid-template-columns: 2fr 1fr; gap: var(--space-6);">
+            <div>
+              <h2 style="font-size:15px; font-weight:700; margin-bottom:var(--space-3);">Water Consumption Trend (Zone B)</h2>
+              <div style="height: 200px; position:relative;">
+                <canvas id="zoneConsumptionTrendChart"></canvas>
+              </div>
+            </div>
+
+            <div>
+              <h2 style="font-size:15px; font-weight:700; margin-bottom:var(--space-3);">Weather Impact</h2>
+              <div class="weather-box">
+                <div>
+                  <div class="weather-temp">32°C</div>
+                  <div class="weather-desc">Mostly Sunny</div>
+                </div>
+                <div style="font-size:36px;" aria-hidden="true">☀️</div>
+              </div>
+              <p style="font-size:12px; color:var(--color-text-secondary); margin-top:8px;">
+                Higher demand expected in the next 24 hours due to heat index elevation.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- VIEW 7: ABOUT / SYSTEM INFORMATION         -->
+      <!-- ========================================== -->
+      <section id="view-about" class="page-view" aria-labelledby="about-page-title">
+        <div class="card">
+          <h1 id="about-page-title" class="card-title" style="font-size:22px; margin-bottom: 4px;">About Jalsetu (WDMS)</h1>
+          <p class="card-subtitle" style="margin-bottom: var(--space-5);">
+            Intelligent Water Demand Management System for Municipal Operations
+          </p>
+
+          <div style="line-height: 1.6; color: var(--color-text-primary);">
+            <h2 style="font-size: 16px; font-weight: 700; margin-top: 16px; margin-bottom: 8px;">1. Purpose & Core Objective</h2>
+            <p>
+              Jalsetu bridges historical water consumption patterns and forward-looking operational decisions. Built specifically for water operations officers and municipal planners, it transforms raw sensor telemetry and meter datasets into actionable redistributions.
+            </p>
+
+            <h2 style="font-size: 16px; font-weight: 700; margin-top: 20px; margin-bottom: 8px;">2. Core Methodology & Algorithms</h2>
+            <ul style="padding-left: 20px; margin-bottom: 16px;">
+              <li><strong>Demand Forecasting:</strong> LightGBM global regressor using lag profiles (1h, 24h, 168h), cyclical time features, and weather covariates to beat seasonal-naive baselines.</li>
+              <li><strong>Anomaly Scoring:</strong> Residual-based robust z-score scoring using Median Absolute Deviation (MAD) with dedicated surge thresholding for rapid pipe bursts or unauthorized draws.</li>
+              <li><strong>Shortage Estimation:</strong> Formulated as <code>shortage = max(0, predicted_demand - available_supply)</code>, categorizing zones into Low, Medium, and High risk.</li>
+              <li><strong>Supply Redistribution:</strong> Weighted progressive water-filling that respects capacity constraints, caps each zone at its expected demand, and prioritizes critical risk regions.</li>
+            </ul>
+
+            <h2 style="font-size: 16px; font-weight: 700; margin-top: 20px; margin-bottom: 8px;">3. Data Integrity & Verification</h2>
+            <p>
+              This live frontend is built against the canonical dataset model specified in <code>PRD.md</code> and verified against the official UI reference mockup. Demonstration data is strictly labeled and adheres to zero-leakage, time-split verification standards.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- VIEW 8: USER PROFILE VIEW                 -->
+      <!-- ========================================== -->
+      <section id="view-profile" class="page-view" aria-labelledby="profile-page-title">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h1 id="profile-page-title" class="card-title" style="font-size:22px; margin-bottom: 4px;">Operator Profile & Credentials</h1>
+              <p class="card-subtitle">Manage municipal jurisdiction, operational role and system authorizations.</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-switch-account">Switch User / Login</button>
+          </div>
+
+          <div class="profile-grid">
+            <!-- Left Profile Card -->
+            <div style="background:var(--color-surface-muted); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:var(--space-6); text-align:center;">
+              <div class="profile-avatar-box" id="profile-card-avatar">SS</div>
+              <h2 id="profile-card-name" style="font-size:18px; font-weight:700; color:var(--color-text-primary); margin-bottom:2px;">Santoshi Sharma</h2>
+              <div id="profile-card-role" style="font-size:13px; color:var(--color-primary); font-weight:600; margin-bottom:var(--space-4);">Chief Operations Officer</div>
+              
+              <div style="text-align:left; border-top:1px solid var(--color-border); padding-top:var(--space-4);">
+                <div class="profile-meta-item">
+                  <span class="profile-meta-label">Employee ID</span>
+                  <span class="profile-meta-val" id="profile-card-id">OP-4082</span>
+                </div>
+                <div class="profile-meta-item">
+                  <span class="profile-meta-label">Email</span>
+                  <span class="profile-meta-val" id="profile-card-email" style="font-size:12px;">santoshi.s@smartcity.gov.in</span>
+                </div>
+                <div class="profile-meta-item">
+                  <span class="profile-meta-label">Status</span>
+                  <span class="status-pill success">Active Duty</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Details Card -->
+            <div>
+              <h2 style="font-size:16px; font-weight:700; margin-bottom:var(--space-4);">Administrative Responsibilities</h2>
+              <div style="background:#FFFFFF; border:1px solid var(--color-border); border-radius:var(--radius-md); padding:var(--space-5); margin-bottom:var(--space-5);">
+                <div class="profile-meta-item">
+                  <span class="profile-meta-label">Department</span>
+                  <span class="profile-meta-val" id="profile-card-dept">Municipal Water Distribution Board</span>
+                </div>
+                <div class="profile-meta-item">
+                  <span class="profile-meta-label">Assigned Jurisdiction</span>
+                  <span class="profile-meta-val" id="profile-card-jurisdiction">Thane Urban Metropolitan Area (Zones A–E)</span>
+                </div>
+                <div class="profile-meta-item">
+                  <span class="profile-meta-label">Authorization Clearance</span>
+                  <span class="profile-meta-val" id="profile-card-access" style="color:var(--color-primary);">Tier 1 - Full Operational Control</span>
+                </div>
+                <div class="profile-meta-item">
+                  <span class="profile-meta-label">Session Authenticated</span>
+                  <span class="profile-meta-val" id="profile-card-login">2026-10-11 10:45 AM IST</span>
+                </div>
+              </div>
+
+              <h2 style="font-size:16px; font-weight:700; margin-bottom:var(--space-3);">Operational Permissions</h2>
+              <ul style="padding-left:20px; font-size:13px; color:var(--color-text-secondary); line-height:1.8;">
+                <li>✔️ <strong>Demand Redistribution Execution:</strong> Authorized to execute inter-zone pipeline allocations.</li>
+                <li>✔️ <strong>Surge & Leakage Incident Override:</strong> Authorized to acknowledge critical anomaly alarms.</li>
+                <li>✔️ <strong>What-If Scenario Simulation:</strong> Authorized to adjust municipal emergency supply baselines.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ========================================== -->
+  <!-- MODAL: LOGIN / AUTHENTICATION DIALOG       -->
+  <!-- ========================================== -->
+  <div id="login-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="login-dialog-title">
+    <div class="auth-card">
+      <button class="modal-close-btn" id="modal-close-btn" aria-label="Close Login Dialog">✕</button>
+
+      <div class="auth-header">
+        <div class="auth-logo-badge" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+          </svg>
+        </div>
+        <h2 id="login-dialog-title" class="auth-title">Jalsetu Sign In</h2>
+        <p class="auth-subtitle">Municipal Smart City Water Management Portal</p>
+      </div>
+
+      <!-- Quick Role Preset Switcher -->
+      <div class="role-switcher-grid">
+        <button type="button" class="role-tab-btn active" id="tab-operator" data-role="operator">Operations Officer</button>
+        <button type="button" class="role-tab-btn" id="tab-analyst" data-role="analyst">Water Analyst</button>
+      </div>
+
+      <form id="login-form">
+        <div class="form-group" style="margin-bottom: var(--space-4);">
+          <label for="login-email" class="form-label">Official Email</label>
+          <input type="email" id="login-email" class="form-input" value="santoshi.s@smartcity.gov.in" required>
+        </div>
+
+        <div class="form-group" style="margin-bottom: var(--space-5);">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <label for="login-password" class="form-label">Password / Security PIN</label>
+            <a href="#" style="font-size:12px; color:var(--color-primary); text-decoration:none;" onclick="alert('For demo access, use the pre-filled credentials or switch roles.'); return false;">Forgot PIN?</a>
+          </div>
+          <input type="password" id="login-password" class="form-input" value="••••••••••••" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; height: 42px;">
+          Authenticate & Access Dashboard
+        </button>
+
+        <p style="text-align:center; font-size:12px; color:var(--color-text-secondary); margin-top: var(--space-4);">
+          Protected under Smart City Urban Infrastructure Protocol
+        </p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Global Footer -->
+  <footer class="footer" role="contentinfo">
+    <div class="container footer-inner">
+      <div>
+        <strong>Jalsetu</strong> — Water Demand Management System &bull; Municipal Operations Dashboard
+      </div>
+      <div>
+        Built with HTML5, CSS3, JavaScript, Leaflet & Chart.js &bull; Smart City Hackathon 2026
+      </div>
+    </div>
+  </footer>
+
+  <!-- Application Logic Scripts -->
+  <script src="/js/core.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
